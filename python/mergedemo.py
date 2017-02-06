@@ -20,7 +20,7 @@ if 'clientid' not in args or len(args['clientid']) != 1:
 
 clientid = int(args['clientid'][0])
 
-db = MongoClient("mongodb-1.demos-web.a0f30356").demos
+db = MongoClient("mongodb").demos
 
 matches = db.minmatches.find({'_id': matchid})
 match = None

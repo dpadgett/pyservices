@@ -44,7 +44,7 @@ import copy
 #  if not ".dm_meta" in file and (exists(join(d,file + ".dm_meta"))
 #    and stat(join(d,file)).st_mtime <= stat(join(d,file + ".dm_meta")).st_mtime) ]
 
-db = MongoClient("mongodb-1.demos-web.a0f30356").demos
+db = MongoClient("mongodb").demos
 basedir = u'/cygdrive/U/demos/'
 player_remap = {
   'c': '$$player.client',

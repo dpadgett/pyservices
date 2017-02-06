@@ -35,7 +35,7 @@ if 'rpc' not in args:
   print 'Missing RPC'
   exit()
 
-db = MongoClient("mongodb-1.demos-web.a0f30356").demos
+db = MongoClient("mongodb").demos
 
 if args['rpc'] == ['teams']:
   playerdb = db.players

@@ -76,7 +76,7 @@ def findmap(maps, match_hash):
 
 def mergematchmeta(match):
   global maps
-  db = MongoClient("mongodb-1.demos-web.a0f30356").demos
+  db = MongoClient("mongodb").demos
   #demodb = db.demos
   mindemodb = db.mindemos
   events = []
@@ -251,7 +251,7 @@ ratings = {}
 def updaterank(match):
   global ratings
   # first see if we even know the players in this match
-  db = MongoClient("mongodb-1.demos-web.a0f30356").demos
+  db = MongoClient("mongodb").demos
   playerdb = db.players
   playergamedb = db.playerGames
   playergames = playergamedb.find({'_id.match': match['_id']}, {'client_num': 1})
@@ -355,7 +355,7 @@ def updaterank(match):
     ratings[playerid]['games'] += 1
 
 if __name__ == '__main__':
-  db = MongoClient("mongodb-1.demos-web.a0f30356").demos
+  db = MongoClient("mongodb").demos
   #demodb = db.demos
   matchdb = db.minmatches
   playerdb = db.players

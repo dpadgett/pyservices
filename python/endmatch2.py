@@ -74,7 +74,7 @@ if __name__ == '__main__':
     run('create_users.py', [match_hash])
     run('calculate_ranks_v3.py', [])
     
-    db = MongoClient('mongodb-1.demos-web.a0f30356').demos
+    db = MongoClient('mongodb').demos
     playergamedb = db.playerGames
     cursor = playergamedb.find({'_id.match': match_hash})
     response['elos'] = []

@@ -87,7 +87,7 @@ def getPlayers(names, startkey, endkey):
   return clients
 
 if __name__ == '__main__':
-  db = MongoClient("mongodb-1.demos-web.a0f30356").demos
+  db = MongoClient("mongodb").demos
   #demodb = db.demos
   mindemodb = db.mindemos
   matchdb = db.minmatches

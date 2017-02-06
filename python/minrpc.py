@@ -37,7 +37,7 @@ if 'rpc' not in args:
   print 'Missing RPC'
   exit()
 
-#db = MongoClient("mongodb-1.demos-web.a0f30356").demos
+#db = MongoClient("mongodb").demos
 
 if args['rpc'] == ['endmatch']:
   if 'demo' not in args or len(args['demo']) != 1:
