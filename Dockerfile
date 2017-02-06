@@ -34,12 +34,11 @@ RUN useradd -ms /bin/bash pyservices
 # copy the nice dotfiles that dockerfile/ubuntu gives us:
 RUN cd && cp -R .bashrc .profile /home/pyservices
 
+COPY python/* /home/pyservices/
+
 WORKDIR /home/pyservices
 
 RUN chown -R pyservices:pyservices /home/pyservices
-
-# due to some bizarre bug the log dir must be deleted and recreated
-RUN rm -rf /var/log/lighttpd && mkdir /var/log/lighttpd && chmod 755 /var/log/lighttpd && chown pyservices:pyservices /var/log/lighttpd
 
 USER pyservices
 ENV HOME /home/pyservices
