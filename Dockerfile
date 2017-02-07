@@ -44,6 +44,4 @@ USER pyservices
 ENV HOME /home/pyservices
 ENV USER pyservices
 
-VOLUME /home/pyservices
-
 CMD lighttpd -D -f /home/pyservices/lighttpd.conf
