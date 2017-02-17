@@ -383,7 +383,7 @@ map_updates = {}
 server_updates = {}
 match_updates = {}
 for demo in demos:
-  mtime = stat( demo + u'.dm_meta' ).st_mtime
+  mtime = stat( (demo + u'.dm_meta').encode('utf8') ).st_mtime
   existing_mtime = -1
   for doc in demodb.find({'_id': demo[len(basedir):]}, { 'mt': 1 }):
     if 'mt' in doc:
@@ -395,7 +395,7 @@ for demo in demos:
     #pass
   print 'Processing demo: ' + demo.encode('utf8')
   try:
-    demometafd = open( demo + u'.dm_meta', u'r' )
+    demometafd = open( (demo + u'.dm_meta').encode('utf8'), u'r' )
   except:
     print sys.exc_info()[0]
     continue
@@ -482,7 +482,7 @@ for demo in demos:
     update_matches(oldwrappeddemometa, wrappeddemometa, match_updates)
     current_demos[wrappeddemometa['_id']] = mtime
     demoid = wrappeddemometa['_id']
-    print 'Upserted', demoid
+    print 'Upserted', demoid.encode('utf8')
   except DuplicateKeyError:
     print 'Skipped duplicate, already in db'
     pass

@@ -222,7 +222,7 @@ if __name__ == '__main__':
     if minversion < 4:
       # no raw times then
       print 'old version', minversion
-      print '\n'.join([demonames[idx] for idx, d in enumerate(demos) if d['version'] == minversion])
+      print (u'\n'.join([demonames[idx] for idx, d in enumerate(demos) if d['version'] == minversion])).encode('utf8')
       start = 'name_start_time'
       end = 'name_end_time'
     else:

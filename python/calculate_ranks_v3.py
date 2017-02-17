@@ -384,4 +384,4 @@ if __name__ == '__main__':
     cursor = playerdb.find({'_id': entry[0]})
     for row in cursor:
       player = row
-    print strip_colors(player['names'][0]['name']), entry[0], trueskill.expose(entry[1]['rating']), entry[1]
+    print strip_colors(player['names'][0]['name']).encode('utf8'), entry[0], trueskill.expose(entry[1]['rating']), entry[1]

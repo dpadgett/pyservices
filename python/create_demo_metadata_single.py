@@ -7,25 +7,26 @@ import locale
 import sys
 import time
 import find_demos
+import traceback
 
 #exit(0)
 
 #demoparser = u'/cygdrive/C/Users/dan/Documents/Visual Studio 2010/Projects/JKDemoMetadata/Release/JKDemoMetadata.exe'
-demoparser = u'jkdemometadata'
+demoparser = u'/home/pyservices/jkdemometadata'
 
-demos = ['/cygdrive/U/demos/whoracle3/autorecord/mpctf_kejim 2014-07-06_19-20-04/1 staso mpctf_kejim 2014-07-06_19-20-04.dm_26']
+demos = sys.argv[1:] #['/cygdrive/U/demos/whoracle3/autorecord/mpctf_kejim 2014-07-06_19-20-04/1 staso mpctf_kejim 2014-07-06_19-20-04.dm_26']
 
 procs = []
 for demo in demos:
   print 'Processing demo: ' + demo.encode('utf8')
   try:
-    demofd = open( demo, u'rb' )
-    demometafd = open( demo + u'.dm_meta', u'wb' )
+    demofd = open( demo.encode('utf8'), u'rb' )
+    demometafd = open( (demo + u'.dm_meta').encode('utf8'), u'wb' )
   except:
-    print sys.exc_info()[0]
+    print traceback.format_exc()
     continue
   timestamp = time.time()
-  procs.append([Popen([demoparser, '-'], stdout=demometafd, stdin=demofd), demofd, demometafd, demo + u'.dm_meta', timestamp])
+  procs.append([Popen([demoparser, '-'], stdout=demometafd, stdin=demofd), demofd, demometafd, (demo + u'.dm_meta').encode('utf8'), timestamp])
   if len( procs ) > 0:
     procs[0][0].wait()
     procs[0][1].close()
