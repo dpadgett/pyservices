@@ -27,15 +27,28 @@ def run(script, args):
   sys.argv = origargv
   #print 'Elapsed:', time.time() - start
 
-print 'Content-type: text/plain'
-print 'Status: 200 OK'
-print ''
-
 args = urlparse.parse_qs(urlparse.urlparse(os.environ['REQUEST_URI']).query)
 
 if 'rpc' not in args:
+  print 'Content-type: text/plain'
+  print 'Status: 200 OK'
+  print ''
+
   print 'Missing RPC'
   exit()
+
+if args['rpc'] == ['bundle']:
+  for arg in ['start', 'end']:
+    if arg not in args or len(args[arg]) != 1:
+      print 'Missing', arg
+      exit()
+  start = args['start'][0]
+  end = args['end'][0]
+  run('bundle.py', [start, end])
+
+print 'Content-type: text/plain'
+print 'Status: 200 OK'
+print ''
 
 #db = MongoClient("mongodb").demos
 

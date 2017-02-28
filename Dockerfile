@@ -2,8 +2,7 @@
 FROM ubuntu:16.04
 MAINTAINER Dan Padgett <dumbledore3@gmail.com>
 
-RUN apt-get update
-RUN apt-get install -y \
+RUN apt-get update && apt-get install -y \
   python \
   python-falcon \
   python-dateutil \
@@ -11,7 +10,8 @@ RUN apt-get install -y \
   python-pymongo \
   python-pip \
   libjansson4 \
-  lighttpd
+  lighttpd \
+  zip
 
 RUN pip install trueskill
 

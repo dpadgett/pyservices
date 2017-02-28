@@ -10,6 +10,7 @@ import json
 from subprocess import Popen, PIPE
 
 from pymongo import MongoClient
+import pymongo
 
 import struct
 
@@ -55,7 +56,7 @@ print 'Current parser version:', ver
 
 # find all demos which don't have a current metadata
 while True:
-  demos = ['/cygdrive/U/demos/' + demo['_id'] for demo in db.mindemos.find({'m.v': {'$ne': ver}}, {}).limit(10)]
+  demos = ['/cygdrive/U/demos/' + demo['_id'] for demo in db.mindemos.find({'m.v': {'$ne': ver}}, {}).sort('t', pymongo.ASCENDING).limit(10)]
   if len(demos) == 0:
     break
   for demo in demos:

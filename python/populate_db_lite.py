@@ -414,7 +414,7 @@ for demo in demos:
     tmstr = ' '.join(demo.rsplit(' ', 2)[-2:])[0:-6]
   if (tmstr.find('-') == -1 or (len(tmstr) != 17 and len(tmstr) != 19)):
     print 'Warning: creation timestamp couldn\'t be found in filename, calculating from mtime'
-    timemillis = stat(demo).st_mtime * 1000
+    timemillis = stat(demo.encode('utf8')).st_mtime * 1000
     for map in demometa['maps']:
       timemillis -= map['map_end_time'] - map['map_start_time']
     tm = datetime.fromtimestamp(round(timemillis / 1000))

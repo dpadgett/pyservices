@@ -10,6 +10,7 @@ import json
 from subprocess import Popen, PIPE
 
 from pymongo import MongoClient
+import pymongo
 
 import struct
 
@@ -55,7 +56,7 @@ print 'Current parser version:', ver
 print 'Missing demo files for:'
 
 # find all demos which don't have a current metadata
-for demo in db.mindemos.find({'m.v': {'$ne': ver}}, {'_id': 1}):
+for demo in db.mindemos.find({'m.v': {'$ne': ver}}, {'_id': 1}).sort('t', pymongo.ASCENDING).limit(5000):
   demo = '/cygdrive/U/demos/' + demo['_id']
   if os.path.isfile(demo.encode('utf8')):
     continue
