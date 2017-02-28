@@ -42,9 +42,10 @@ if args['rpc'] == ['bundle']:
     if arg not in args or len(args[arg]) != 1:
       print 'Missing', arg
       exit()
-  start = args['start'][0]
-  end = args['end'][0]
+  start = int(args['start'][0])
+  end = int(args['end'][0])
   run('bundle.py', [start, end])
+  exit()
 
 print 'Content-type: text/plain'
 print 'Status: 200 OK'
