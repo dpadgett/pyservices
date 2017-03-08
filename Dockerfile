@@ -3,19 +3,17 @@ FROM ubuntu:16.04
 MAINTAINER Dan Padgett <dumbledore3@gmail.com>
 
 RUN apt-get update && apt-get install -y \
-  python \
-  python-falcon \
-  python-dateutil \
-  python-tz \
-  python-pymongo \
-  python-pip \
-  libjansson4 \
-  lighttpd \
-  zip
-
-RUN pip install trueskill
-
-RUN apt-get remove --purge --auto-remove -y python-pip && apt-get clean && apt-get autoclean
+    python \
+    python-falcon \
+    python-dateutil \
+    python-tz \
+    python-pymongo \
+    python-pip \
+    libjansson4 \
+    lighttpd \
+    zip && \
+  pip install trueskill && \
+  apt-get remove --purge --auto-remove -y python-pip && apt-get clean && apt-get autoclean
 
 RUN cp /usr/share/i18n/charmaps/CP1252.gz /tmp && \
     cd /tmp && \
