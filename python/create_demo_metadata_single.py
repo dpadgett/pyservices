@@ -6,7 +6,7 @@ from os.path import isfile, isdir, join, exists
 import locale
 import sys
 import time
-import find_demos
+#import find_demos
 import traceback
 
 #exit(0)
@@ -29,6 +29,8 @@ for demo in demos:
   procs.append([Popen([demoparser, '-'], stdout=demometafd, stdin=demofd), demofd, demometafd, (demo + u'.dm_meta').encode('utf8'), timestamp])
   if len( procs ) > 0:
     procs[0][0].wait()
+    if procs[0][0].returncode != None:
+      print 'Parser for', procs[0][3], 'exited with code', procs[0][0].returncode
     procs[0][1].close()
     procs[0][2].close()
     utime(procs[0][3], (procs[0][4], procs[0][4]))
