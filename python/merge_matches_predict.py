@@ -6,8 +6,8 @@ import re
 import random
 import json
 import shlex
-from os.path import isfile, isdir, join, exists
-from os import listdir
+from os.path import isfile, isdir, join, exists, splitext
+from os import listdir, remove
 import zipfile
 import sys
 import hashlib
@@ -54,11 +54,13 @@ def load_arenas():
           key = token
   return maps
 
-maps = load_arenas()
+#maps = load_arenas()
+with open('maps.json') as mapsfile:
+  maps = json.loads(mapsfile.read())
 
 from subprocess import Popen, PIPE, call
 from os import listdir, stat, remove
-from os.path import isfile, isdir, join, exists, basename
+from os.path import isfile, isdir, join, exists, basename, dirname
 
 def strip_non_ascii(string):
   ''' Returns the string without non ASCII characters'''
@@ -92,20 +94,22 @@ def format_time(time):
 
 # script should be a list of [demofile, startmillis] pairs
 def mergedemo(script, filename):
-  democutter = u'/cygdrive/C/Users/dan/Documents/Visual Studio 2010/Projects/JKDemoMetadata/Release/DemoMerger.exe'
+  democutter = u'./demomerger'
   #for nice_frag in [i for i in list if i[0] > 2.1]:
   #print nice_frag[0], basename(nice_frag[1][0]), nice_frag[1][1]['human_time']
   #shutil.copy2(nice_frag[3], u'/cygdrive/C/Program Files (x86)/jka/base/demos/acur/' + str(nice_frag[0]) + ' ' + nice_frag[2].replace(':', '-').replace('.', '_') + ' ' + basename(nice_frag[3]))
   
-  scriptfile = 'C:\\cygwin\\tmp\\script'
-  cygscriptfile = '/tmp/script'
-  scriptfd = open( cygscriptfile, u'wb' )
+  scriptstr = ''
+  scriptfile = '/dev/stdin'
   for pair in script:
     demofile, startmillis = pair
-    scriptfd.write( demofile[1] + ' ' + str(demofile[0]) + ' ' + format_time(startmillis) + "\n" )
-  scriptfd.close()
-  
-  proc = Popen([democutter, scriptfile, filename])
+    scriptstr += demofile[1] + ' ' + str(demofile[0]) + ' ' + format_time(startmillis) + "\n"
+
+  print 'Merging demos.  Script:'
+  print script
+  proc = Popen([democutter, scriptfile, filename], stdin=PIPE)
+  proc.stdin.write(scriptstr)
+  proc.stdin.close()
   proc.wait()
 
 def map_match_hash( map ):
@@ -127,7 +131,7 @@ def findmap(maps, match_hash):
 ''' outdir is the non-cygwin dir (since it is passed to a non-cygwin c program '''
 def mergematch(match, outdir):
   global maps
-  db = MongoClient().demos
+  db = MongoClient('mongodb').demos
   demodb = db.demos
   events = []
   demosbyid = {}
@@ -140,19 +144,21 @@ def mergematch(match, outdir):
   for demo in match['d']:
     clientids[demo['c']] = False#True
     # overloading this for now
-    demosbyid[demo['c']] = 'U:/demos/' + demo['id']
-    demofiles.append('U:/demos/' + demo['id'])
+    demosbyid[demo['c']] = '/cygdrive/U/demos/' + demo['id']
+    demofiles.append('/cygdrive/U/demos/' + demo['id'])
   #demofiles = demosbyid.values()
   #TODO: trim each demo to just the relevant map before generating predicted demos.
   #needed because the missing chunk data isn't keyed by match id.
-  demochanger = u'/cygdrive/C/Users/dan/Documents/Visual Studio 2010/Projects/JKDemoMetadata/Release/DemoChanger.exe'
-  demoparser = u'/cygdrive/C/Users/dan/Documents/Visual Studio 2010/Projects/JKDemoMetadata/Release/JKDemoMetadata.exe'
+  demochanger = u'./demochanger'
+  demoparser = u'./jkdemometadata'
   mapstart = None
   mapend = None
   for demo in match['d']:
     print 'Checking', demo['id']
     client = demo['c']
-    demodata = demodb.find({'_id':'/cygdrive/U/demos/' + demo['id']})[0]
+    #demodata = demodb.find({'_id':'/cygdrive/U/demos/' + demo['id']})[0]
+    with open('/cygdrive/U/demos/' + demo['id'] + '.dm_meta') as metaf:
+      demodata = {'_id': '/cygdrive/U/demos/' + demo['id'], 'metadata': json.loads(metaf.read())}
     demo['meta'] = demodata['metadata']
     mapidx, map = findmap(demodata['metadata']['maps'], match['_id'])
     if mapstart == None:
@@ -169,20 +175,28 @@ def mergematch(match, outdir):
         if not int(clientid) in clientids:
           print 'Adding', clientid
           clientids[int(clientid)] = False
+  generated_files = []
   for client in [id for (id, has_demo) in clientids.items() if not has_demo]:
-    demofile = '/cygwin/tmp/%d.%s.dm_26' % (client, match['_id'][0:5])
+    demofile = '/tmp/%d.%s.dm_26' % (client, match['_id'][0:5])
+    missingmetafile = demofile + '.missing'
     print 'Generating demo for client', client, 'at', demofile
     #print ' '.join(['"' + x + '"' for x in [demochanger, '%d' % (client)] + demofiles + [u'C:%s' % (demofile)]])
-    proc = Popen([demochanger, '%d' % (client)] + demofiles + [u'C:%s' % (demofile)], stdout=PIPE)
-    missingmeta = json.loads(proc.communicate()[0])
-    proc.wait()
-    demofilefd = open( '/cygdrive/C' + demofile, u'rb' )
+    if not exists(missingmetafile):
+      with open(missingmetafile, 'w') as missingmetafd:
+        proc = Popen([demochanger, '%d' % (client)] + demofiles + [demofile], stdout=missingmetafd)
+      proc.wait()
+    else:
+      print 'reusing existing missingmeta'
+    with open(missingmetafile, 'r') as missingmetafd:
+      missingmeta = json.loads(missingmetafd.read())
+    demofilefd = open( demofile, u'rb' )
     proc = Popen([demoparser, u'-'], stdin=demofilefd, stdout=PIPE)
     meta = json.loads(proc.communicate()[0])
     meta['missing'] = missingmeta
     proc.wait()
     demofilefd.close()
-    match['d'] += [{'id': '/cygdrive/C%s' % (demofile), 'c': client, 'meta': meta}]
+    match['d'] += [{'id': demofile, 'c': client, 'meta': meta}]
+    generated_files += [demofile, missingmetafile]
   #print match['demos']
   #return
   for demo in match['d']:
@@ -191,10 +205,10 @@ def mergematch(match, outdir):
     if 'meta' in demo:
       demodata = {'_id': '/cygdrive/U/demos/' + demo['id'], 'metadata': demo['meta']}
     else:
-      demodata = demodb.find({'_id':'/cygdrive/U/demos/' + demo['id']})[0]
+      demodata = None #demodb.find({'_id':'/cygdrive/U/demos/' + demo['id']})[0]
     demometabyid[client] = demodata
     mapidx, map = findmap(demodata['metadata']['maps'], match['_id'])
-    demosbyid[client] = (mapidx, demo['id'].replace('/cygdrive/U/', 'U:/').replace('/cygdrive/C/', 'C:/'))
+    demosbyid[client] = (mapidx, demo['id'])
     for event in map['ctfevents']:
       if 'attacker' in event:
         attacker = event['attacker']
@@ -391,7 +405,7 @@ def mergematch(match, outdir):
   tm = match['t']
   tm = timezone('UTC').localize(tm, is_dst=True)
   tm = tm.astimezone(timezone('US/Pacific'))
-  filename = strip_fs(mapname + ' ' + tm.strftime('%Y-%m-%d %H_%M_%S'))
+  filename = strip_fs(mapname + '_' + tm.strftime('%Y-%m-%d_%H-%M-%S'))
   prefix = outdir + filename
   mergedemo(cuts, prefix + '.dm_26')
   scores = match['sc'][0]
@@ -423,10 +437,14 @@ def mergematch(match, outdir):
   metafd = open(prefix + '.json', 'w')
   metafd.write(json.dumps(video))
   metafd.close()
+  for file in generated_files:
+    os.remove(file)
   return prefix + '.dm_26'
 
+import zipfile
+
 if __name__ == '__main__':
-  db = MongoClient().demos
+  db = MongoClient('mongodb').demos
   demodb = db.demos
   matchdb = db.minmatches
   #matches = list(matchdb.find({'is_match': True}))
@@ -439,4 +457,25 @@ if __name__ == '__main__':
   #matches = list(matchdb.find({'_id': '39dd8a23965328658041d9df2510a2aeb905ebdbad71bc1662d0044d56d7b4db487f52c34aaf24808ef2d2b92ea599ceecc0a6c8865e46dd5fb985b1ddc154f3'}))
   #matches = list(matchdb.find({'_id': '958c5945124f7224720f2041f831b26c9b66c01ab8bd0eb775f34eaf8ff8444dadfeffccef6275d4841825ebec2993805885eabf3a22dc271638fa2a4b9bec80'}))
   match = matchdb.find({'_id': id})[0]
-  file = mergematch(match, 'C:/Program Files (x86)/jka/base/demos/acur/')
+
+  origout = sys.stdout
+  sys.stdout = sys.stderr
+
+  file = mergematch(match, '/tmp/')
+
+  sys.stdout = origout
+
+  metafile = splitext(file)[0] + '.json'
+  # we want to pass back both the demo file and the json data...
+  # seems the simplest way is to either tar or zip the results
+  # zip is more portable for users so will use it for now
+  print 'Content-type: application/octet-stream'
+  print 'Content-Disposition: attachment; filename="' + basename(file) + '.zip"'
+  print 'Status: 200 OK'
+  print ''
+
+  zip = Popen(['zip', '-', basename(file), basename(metafile)], cwd=dirname(file))
+  zip.wait()
+
+  os.remove(file)
+  os.remove(metafile)

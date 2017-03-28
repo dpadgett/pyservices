@@ -46,6 +46,13 @@ if args['rpc'] == ['bundle']:
   end = int(args['end'][0])
   run('bundle.py', [start, end])
   exit()
+elif args['rpc'] == ['matchdemo']:
+  if 'id' not in args or len(args['id']) != 1:
+    print 'Missing id'
+    exit()
+  id = args['id'][0]
+  run('merge_matches_predict.py', [id])
+  exit()
 
 print 'Content-type: text/plain'
 print 'Status: 200 OK'
