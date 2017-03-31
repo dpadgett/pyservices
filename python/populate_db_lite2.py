@@ -85,24 +85,7 @@ for demo in demos:
     else:
       (date, time) = tmstr.split('_')
     tm = parse(date + ' ' + time.replace('-', ':'))
-  tzone = timezone('US/Eastern')
-  if (demo.find('/whoracle/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/whoracle2/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/whoracle3/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/europug/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/sylar/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/sith/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/bra/') != -1):
-    tzone = timezone('UTC')
-  if (demo.find('/demobot/') != -1):
-    tzone = timezone('US/Pacific')
-    print 'Using', tzone
+  tzone = timezone_for_demo(demo)
   tm = tzone.localize(tm, is_dst=True)
   print 'Time:', tm
   wrappeddemometa = shrinker.minimize({'_id': demo, 'time_created': tm, 'metadata_mtime': mtime, 'metadata': copy.deepcopy(demometa)})

@@ -26,7 +26,36 @@ import find_demos
 
 import shrinker
 import copy
-import demodb_lib
+#import demodb_lib
+
+tz_mapping = {
+  '/whoracle': timezone('CET'),
+  '/whoracle2': timezone('CET'),
+  '/whoracle3': timezone('CET'),
+  '/europug': timezone('CET'),
+  '/sylar': timezone('CET'),
+  '/sith': timezone('CET'),
+  '/demon': timezone('CET'),
+  '/bra': timezone('UTC'),
+  '/demobot': timezone('US/Pacific'),
+  '/pug': timezone('US/Eastern'),
+  '/japlus': timezone('US/Eastern'),
+  '/west_coast_pug': timezone('US/Eastern'),
+  '/akl': timezone('US/Eastern'),
+}
+
+def timezone_for_demo( demo ):
+  '''
+  Returns the timezone corresponding to the server which generated the given demo path or dir.
+  '''
+  global tz_mapping
+  tzone = timezone('US/Eastern')
+  for dir, tz in tz_mapping.iteritems():
+    if (demo.find(dir + '/') != -1):
+      tzone = tz
+      break
+  print 'Using timezone:', tzone
+  return tzone
 
 def map_is_match( data, map ):
   map_start = map['map_start_time']

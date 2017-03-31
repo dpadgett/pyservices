@@ -21,6 +21,7 @@ import struct
 import traceback
 
 import find_demos
+import demometa_lib
 
 # bump version if mongo wrapper format changes (match hash, etc)
 mongo_version = 3
@@ -201,23 +202,7 @@ for demo in demos:
     else:
       (date, time) = tmstr.split('_')
     tm = parse(date + ' ' + time.replace('-', ':'))
-  tzone = timezone('US/Eastern')
-  if (demo.find('/whoracle/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/whoracle2/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/whoracle3/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/europug/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/sylar/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/sith/') != -1):
-    tzone = timezone('CET')
-  if (demo.find('/bra/') != -1):
-    tzone = timezone('UTC')
-  if (demo.find('/demobot/') != -1):
-    tzone = timezone('US/Pacific')
+  tzone = timezone_for_demo(demo)
   tm = tzone.localize(tm, is_dst=True)
   wrappeddemometa = { '_id': demo, 'time_created': tm, 'metadata_mtime': mtime, 'metadata': demometa }
   # write client name separately since mongodb can't query it properly

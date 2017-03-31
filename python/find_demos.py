@@ -17,25 +17,28 @@ import sys
 import calendar
 
 import json
+import demometa_lib
 
 # only process last 12 hours folders, since listing all directories eats a lot of cpu
 end_time = parse(commands.getoutput("/bin/date") + ' -0800') + relativedelta(days=-7)#hours=-12)#years=-20)
 
 def find_demos_dirs():
   global end_time
+  global tz_mapping
   basedir = u'/cygdrive/U/demos'
   #basepaths = [basedir]# + u'/cyd']#, basedir + u'/delta', basedir + u'/eh', basedir + u'/ent', basedir + u'/ovelha', basedir + u'/stubert', basedir + u'/teh', basedir + u'/xen_crypt']
-  basepaths = [basedir + u'/sylar', basedir + u'/whoracle3', basedir + u'/pug', basedir + u'/japlus', basedir + u'/west_coast_pug', basedir + u'/akl', basedir + u'/sith', basedir + u'/bra']
+  basepaths = [basedir + dir for dir in tz_mapping.keys() if dir != '/whoracle' and dir != '/whoracle2']
   #basepaths = [basedir + u'/cyd', basedir + u'/teh']
   #basepaths = [basedir + u'/teh']
   #basepaths = [basedir + u'/teh']
   #basepaths = [basedir + u'/tiin']
   #basepaths = [basedir + u'/onasi']
   #basepaths = [basedir + u'/whoracle3']
-  basepaths.append(basedir + u'/demobot')
+  #basepaths.append(basedir + u'/demobot')
 
   def shouldCheck(dir):
-    dated_folders = [u'/sylar', u'/whoracle3', u'/whoracle2', u'/whoracle', u'/pug', u'/japlus', u'/west_coast_pug', u'/akl', u'/sith']
+    global tz_mapping
+    dated_folders = tz_mapping.keys()
     dated = False
     match = re.match(r'.*/.* ([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]{2}-[0-9]{2}-[0-9]{2})', dir)
     if match != None:
@@ -65,23 +68,7 @@ def find_demos_dirs():
           dated = True
     if dated:
       tm = parse(date + ' ' + time.replace('-', ':'))
-      tzone = timezone('US/Eastern')
-      if (dir.find('/whoracle/') != -1):
-        tzone = timezone('CET')
-      if (dir.find('/whoracle2/') != -1):
-        tzone = timezone('CET')
-      if (dir.find('/whoracle3/') != -1):
-        tzone = timezone('CET')
-      if (dir.find('/europug/') != -1):
-        tzone = timezone('CET')
-      if (dir.find('/sylar/') != -1):
-        tzone = timezone('CET')
-      if (dir.find('/sith/') != -1):
-        tzone = timezone('CET')
-      if (dir.find('/bra/') != -1):
-        tzone = timezone('UTC')
-      if (dir.find('/demobot/') != -1):
-        tzone = timezone('US/Pacific')
+      tzone = timezone_for_demo(dir)
       tm = tzone.localize(tm, is_dst=True)
       tm += extra
       if tm < end_time:
