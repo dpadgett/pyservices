@@ -24,10 +24,10 @@ end_time = parse(commands.getoutput("/bin/date") + ' -0800') + relativedelta(day
 
 def find_demos_dirs():
   global end_time
-  global tz_mapping
+  global demometa_lib.tz_mapping
   basedir = u'/cygdrive/U/demos'
   #basepaths = [basedir]# + u'/cyd']#, basedir + u'/delta', basedir + u'/eh', basedir + u'/ent', basedir + u'/ovelha', basedir + u'/stubert', basedir + u'/teh', basedir + u'/xen_crypt']
-  basepaths = [basedir + dir for dir in tz_mapping.keys() if dir != '/whoracle' and dir != '/whoracle2']
+  basepaths = [basedir + dir for dir in demometa_lib.tz_mapping.keys() if dir != '/whoracle' and dir != '/whoracle2']
   #basepaths = [basedir + u'/cyd', basedir + u'/teh']
   #basepaths = [basedir + u'/teh']
   #basepaths = [basedir + u'/teh']
@@ -37,8 +37,8 @@ def find_demos_dirs():
   #basepaths.append(basedir + u'/demobot')
 
   def shouldCheck(dir):
-    global tz_mapping
-    dated_folders = tz_mapping.keys()
+    global demometa_lib.tz_mapping
+    dated_folders = demometa_lib.tz_mapping.keys()
     dated = False
     match = re.match(r'.*/.* ([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9]{2}-[0-9]{2}-[0-9]{2})', dir)
     if match != None:
