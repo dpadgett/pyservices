@@ -85,7 +85,7 @@ for demo in demos:
     else:
       (date, time) = tmstr.split('_')
     tm = parse(date + ' ' + time.replace('-', ':'))
-  tzone = timezone_for_demo(demo)
+  tzone = demometa_lib.timezone_for_demo(demo)
   tm = tzone.localize(tm, is_dst=True)
   print 'Time:', tm
   wrappeddemometa = shrinker.minimize({'_id': demo, 'time_created': tm, 'metadata_mtime': mtime, 'metadata': copy.deepcopy(demometa)})

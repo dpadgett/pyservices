@@ -68,7 +68,7 @@ def find_demos_dirs():
           dated = True
     if dated:
       tm = parse(date + ' ' + time.replace('-', ':'))
-      tzone = timezone_for_demo(dir)
+      tzone = demometa_lib.timezone_for_demo(dir)
       tm = tzone.localize(tm, is_dst=True)
       tm += extra
       if tm < end_time:

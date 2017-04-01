@@ -202,7 +202,7 @@ for demo in demos:
     else:
       (date, time) = tmstr.split('_')
     tm = parse(date + ' ' + time.replace('-', ':'))
-  tzone = timezone_for_demo(demo)
+  tzone = demometa_lib.timezone_for_demo(demo)
   tm = tzone.localize(tm, is_dst=True)
   wrappeddemometa = { '_id': demo, 'time_created': tm, 'metadata_mtime': mtime, 'metadata': demometa }
   # write client name separately since mongodb can't query it properly
