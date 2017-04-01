@@ -22,8 +22,6 @@ import hashlib
 import struct
 import traceback
 
-import find_demos
-
 import shrinker
 import copy
 #import demodb_lib
