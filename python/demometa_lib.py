@@ -45,9 +45,9 @@ tz_mapping = {
 }
 
 def timezone_for_demo( demo ):
-  '''
+  """
   Returns the timezone corresponding to the server which generated the given demo path or dir.
-  '''
+  """
   global tz_mapping
   tzone = timezone('US/Eastern')
   for dir, tz in tz_mapping.iteritems():
