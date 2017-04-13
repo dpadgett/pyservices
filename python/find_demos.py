@@ -86,7 +86,7 @@ def find_demos_dirs():
   while len(tovisit) > 0:
     dir = tovisit.popleft()
     for f in listdir(dir):
-      if isdir(join(dir,f)) and join(dir,f) != dir and shouldCheck(join(dir,f)):
+      if (not f.endswith('.dm_26')) and (not f.endswith('.dm_meta')) and isdir(join(dir,f)) and join(dir,f) != dir and shouldCheck(join(dir,f)):
         tovisit.append(join(dir,f))
         yield join(dir,f)
     #childdirs = [ join(dir,f) for f in listdir(dir) if isdir(join(dir,f)) and join(dir,f) != dir and shouldCheck(join(dir,f)) ]
