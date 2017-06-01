@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     python-dateutil \
     python-tz \
     python-pymongo \
+    python-mpmath \
     python-pip \
     libjansson4 \
     lighttpd \

@@ -355,6 +355,7 @@ def updaterank(match):
     ratings[playerid]['games'] += 1
 
 if __name__ == '__main__':
+  trueskill.TrueSkill(backend='mpmath').make_as_global()
   db = MongoClient("mongodb").demos
   #demodb = db.demos
   matchdb = db.minmatches
