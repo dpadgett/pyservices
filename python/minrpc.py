@@ -69,3 +69,11 @@ if args['rpc'] == ['endmatch']:
   sys.stdin = StringIO.StringIO(json.dumps({'demo': demo}))
   run('endmatch2.py', [])
   sys.stdin = origstdin
+elif args['rpc'] == ['newdemos']:
+  for arg in ['since']:
+    if arg not in args or len(args[arg]) != 1:
+      print 'Missing', arg
+      exit()
+  since = int(args['since'][0])
+  run('newdemos.py', [since])
+  exit()
