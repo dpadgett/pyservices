@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     python-pip \
     libjansson4 \
     lighttpd \
+    nano \
     zip && \
   pip install trueskill && \
   apt-get remove --purge --auto-remove -y python-pip && apt-get clean && apt-get autoclean

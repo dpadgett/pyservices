@@ -47,7 +47,7 @@ def merge_history(datas, matchid, name):
             break
         else:
           history[client_id].append( dict(value) ) # makes a copy
-      for value_list in history.values():
+      for value_list in [history[client_id]]:
         sort_values(value_list)
         needs_check = True
         while needs_check:

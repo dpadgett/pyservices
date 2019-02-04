@@ -80,7 +80,8 @@ def find_demos_dirs():
     return True
 
   for f in basepaths:
-    yield f
+    if not f.endswith('demobot'):
+      yield f
   #directories = [f for f in basepaths]
   tovisit = deque(basepaths)
   while len(tovisit) > 0:
@@ -136,7 +137,9 @@ def find_demos():
   #return
   directories = find_demos_dirs()
   for d in directories:
+    print 'Processing', d
     for file in listdir(d):
+      print 'Processing', file
       if (file.endswith(".dm_26") or file.endswith(".dm_25")) and not ".dm_meta" in file and (not exists(join(d,file + ".dm_meta"))
           or not check_metadata(join(d,file))):
         yield join(d,file)
