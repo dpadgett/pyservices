@@ -29,6 +29,7 @@ import trueskill
 
 import merge_metadata
 import shrinker
+import traceback
 
 def strip_non_ascii(string):
   ''' Returns the string without non ASCII characters'''
@@ -373,15 +374,22 @@ if __name__ == '__main__':
   if len(lastgame) > 0:
     print 'Last elo run updated up to', lastgame[0]['time']
     startdate = lastgame[0]['time']
-  #startdate = datetime(2018, 8, 26)
+  #startdate = datetime(2019, 5, 17)
   #startdate = startdate - timedelta(seconds=5)
-  matches = matchdb.find({'ma': True, 't': {'$gt': startdate}}).sort('t', 1)#.limit(1000)
-  #matches = matchdb.find({'_id': '147ce9b3dbfa58c5'}).sort('t', 1)
   i = 0
-  for match in matches:
-    i += 1
-    print 'Processing match', i, match['_id']
-    updaterank(match)
+  while True:
+    matches = matchdb.find({'ma': True, 't': {'$gt': startdate}}).sort('t', 1)#.limit(1000)
+    #matches = matchdb.find({'_id': '147ce9b3dbfa58c5'}).sort('t', 1)
+    try:
+      for match in matches:
+        i += 1
+        print 'Processing match', i, match['_id']
+        print match['t']
+        startdate = match['t']
+        updaterank(match)
+      break
+    except:
+      print traceback.format_exc()
   sortedratings = [rating for rating in ratings.iteritems() if rating[1]['games'] > 46]  # trueskill website says 46 game minimum for 4:4 games
   sortedratings = sorted(sortedratings, key = lambda entry: trueskill.expose(entry[1]['rating']), reverse=True)
   

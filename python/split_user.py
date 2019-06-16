@@ -56,9 +56,9 @@ if __name__ == '__main__':
     print 'Couldnt find all games, bailing'
     sys.exit(1)
 
-  #player = {}
-  #playerid = playerdb.save(player)
-  playerid = ObjectId('5c57743f3f926d1e1b2652e1')
+  player = {}
+  playerid = playerdb.save(player)
+  #playerid = ObjectId('55dc48b3cb15c73790d86482')
   print 'Split player id:', playerid
 
   for playergame in playergames:
