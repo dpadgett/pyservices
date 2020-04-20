@@ -163,10 +163,12 @@ def map_is_match( data, map ):
   # only a pug if map_start is (near) 0.  otherwise, noone was on when map started
   # actual map_restart min start time is 400.  but, server probably lags a few frames to reload everything
   # so say it's ok if map_start is <1s.  this filters out map changes, since clients take longer than .6s to load
-  if map_start >= 10000:
-    #print 'Not a pug - map_start was ' + str(map_start) + ': ' + directory
+  # UPDATE: this no longer works due to openjk server time reset.
+  if map_start >= 20000:
+    print 'Not a pug - map_start was ' + str(map_start)
     return (False, match_hash)
   if map_duration < 10 * 60 * 1000:
+    print 'Not a pug - map duration was ' + str(map_duration)
     return (False, match_hash)
   # track team changes
   #( name_history, team_history, frag_history ) = merge_histories( demo_datas )
@@ -211,9 +213,18 @@ def map_is_match( data, map ):
   if len(ending_players) - len(original_players) > 2:
     print 'More than 2 substitutions were made: ', lost_players
     return (False, match_hash)
+  if 'scores' in map:
+    teams = [x for x in ['red', 'blue', 'free'] if x + 'players' in map['scores']]
+    playerscores = [player for x in teams for player in map['scores'][x + 'players']]
+    mapdur = map_end / 1000 / 60
+    times = [client['time'] for client in playerscores]
+    if len([t for t in times  if t >= mapdur - 1]) == 0:
+      print 'Not a pug - no player stayed for full map duration of ' + str(mapdur) + ' - only ' + str(times)
+      return (False, match_hash)
   # map must end in intermission (scoreboard shown).  demo file will only record scores during intermission
   intermission = map['scores']['is_final'] == 1
   if (not intermission):
+    print 'Not a pug - scores not sent during intermission'
     return (False, match_hash)
   print 'Is a pug - map_start was ' + str(map_start) + ', ' + str(len(starting_teams['RED'])) + '\'s'
   return (True, match_hash)

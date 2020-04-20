@@ -11,7 +11,7 @@ if 'demo' not in args or len(args['demo']) != 1:
   exit()
 
 demo = args['demo'][0]
-if demo[-6:-1] != '.dm_2' or demo[0:18] != '/cygdrive/U/demos/' or '/../' in demo:
+if (demo[-6:-1] != '.dm_2' and demo[-8:] != '.dm_meta') or demo[0:18] != '/cygdrive/U/demos/' or '/../' in demo:
   print 'Not a demo'
   exit()
 

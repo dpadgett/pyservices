@@ -44,12 +44,24 @@ def longestmap(data):
       map_duration = map_end - map_start
   return map
 
+class multifile(object):
+  def __init__(self, files):
+      self._files = files
+  def __getattr__(self, attr, *args):
+      return self._wrap(attr, *args)
+  def _wrap(self, attr, *args):
+      def g(*a, **kw):
+          for f in self._files:
+              res = getattr(f, attr, *args)(*a, **kw)
+          return res
+      return g
+
 if __name__ == '__main__':
   request = json.loads(sys.stdin.read())
   response = {}
   logbuf = StringIO.StringIO()
   origout = sys.stdout
-  sys.stdout = logbuf
+  sys.stdout = multifile([sys.stderr, logbuf])
   
   start = time.time()
   
@@ -80,17 +92,21 @@ if __name__ == '__main__':
     response['elos'] = []
     response['is_match'] = False
     for row in cursor:
+      #print row
       if row['is_match'] == False:
         continue
       response['is_match'] = True
       if 'rating' in row:
-        response['elos'].append({'client_num': row['client_num'], 'rating': row['rating'], 'name': row['names'][-1]['name']})
+        response['elos'].append({'client_num': row['client_num'], 'rating': row['rating'], 'name': row['names'][-1]['name'], 'team': row['score']['team']})
   except:
     print traceback.format_exc()
     #print sys.exc_info()[0]
   
   sys.stdout = origout
-  response['log'] = logbuf.getvalue()
+  try:
+    response['log'] = logbuf.getvalue()
+  except:
+    response['log'] = 'Error returning server log'
   response['elapsed'] = time.time() - start
   logbuf.close()
   print json.dumps(response)

@@ -143,3 +143,47 @@ def inflate(data):
   if 'metadata' in data:
     inflate_metadata(data['metadata'])
   return data
+
+def matchmapping():
+  return {
+    'd': 'demos',
+    's': 'map_start_time',
+    'e': 'map_end_time',
+    'n': 'mapname',
+    'sc': 'scores',
+    'h': 'sv_hostname',
+    't': 'time_created',
+    'ma': 'is_match',
+    '_id': '_id'}
+
+def demomapping():
+  return {
+    'c': 'client_id',
+    'n': 'name',
+    'id': 'id'}
+
+def minimize_match(data):
+  #data['_id'] = data['_id'][len('/cygdrive/U/demos/'):]
+  if 'scores' in data:
+    for scores in data['scores']:
+      minimize_scores(scores)
+  if 'demos' in data:
+    for demo in data['demos']:
+      rekey(demo, invert(demomapping()))
+      demo['id'] = demo['id'][len('/cygdrive/U/demos/'):]
+  rekey(data, invert(matchmapping()))
+  return data
+
+# TODO: this isn't done yet.  only minimize works.  to properly inflate, additional data is needed.
+def inflate_match(data):
+  #data['_id'] = '/cygdrive/U/demos/' + data['_id']
+  rekey(data, matchmapping())
+  for demo in data['demos']:
+    demo['id'] = '/cygdrive/U/demos/' + demo['id']
+    rekey(demo, demomapping())
+  if 'scores' in data:
+    for scores in data['scores']:
+      inflate_scores(scores)
+  if 'metadata' in data:
+    inflate_metadata(data['metadata'])
+  return data

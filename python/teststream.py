@@ -1,21 +1,17 @@
-#!/usr/bin/python
+#!/usr/bin/python -u
 
+from subprocess import Popen, PIPE
 import sys
-import time
-
-input = 'dummy' #sys.stdin.read()
-
-print 'Test'
-print 'Did it work?'
-
-print sys.argv
-
+import json
 import os
-print 'Env:', os.environ
-print 'eof'
 
-time.sleep(5)
+print 'Content-type: text/plain'
+print 'Status: 200 OK'
+print ''
 
-print 'input:'
-print 'Read', len(sys.stdin.read()), 'bytes'
-print 'eof'
+print >> sys.stderr, os.environ
+
+data = sys.stdin.read(1024)
+while len(data) > 0:
+  print >> sys.stderr, 'received', len(data), ' bytes' #: "' + data + '"' + ":".join("{:02x}".format(ord(c)) for c in data)
+  data = sys.stdin.read(1024)

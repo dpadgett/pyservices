@@ -85,11 +85,11 @@ def getPlayers(names, startkey, endkey):
   return clients
 
 def update_player(player):
-  player['ip_hash'] = sorted(player['ip_hash'], key=lambda x: x['time'], reverse=True)
+  player['ip_hash'] = sorted(player['ip_hash'], key=lambda x: x['time'], reverse=True)[:5]
   player['num_ips'] = len(player['ip_hash'])
-  player['guid_hash'] = sorted(player['guid_hash'], key=lambda x: x['time'], reverse=True)
+  player['guid_hash'] = sorted(player['guid_hash'], key=lambda x: x['time'], reverse=True)[:5]
   player['num_guids'] = len(player['guid_hash'])
-  player['names'] = sorted(player['names'], key=lambda x: x['time'], reverse=True)
+  player['names'] = sorted(player['names'], key=lambda x: x['time'], reverse=True)[:5]
   player['num_names'] = len(player['names'])
   if 'matches' in player:
     del player['matches']
@@ -107,6 +107,8 @@ def find_player_property(props, prop_name, prop_value):
 
 def recreate_player(playerid, playergames):
   player = {'_id': playerid, 'names': [], 'ip_hash': [], 'guid_hash': [], 'num_games': 0, 'num_matches': 0}
+  playergames.sort(lambda x, y: -int((x['time'] - y['time']).total_seconds()))
+  player['time'] = 0
   for summary in playergames:
     player['num_games'] += 1
     if summary['is_match']:
@@ -129,5 +131,8 @@ def recreate_player(playerid, playergames):
         had_guid = True
       player_name = find_player_property(player['names'], 'name', name['name'])
       player_name['time'] += name['name_end_time'] - name['name_start_time']
+      player['time'] += name['name_end_time'] - name['name_start_time']
+    if 'rating' in summary and 'rating' not in player:
+      player['rating'] = summary['rating']['updated']
     update_player(player)
   return player

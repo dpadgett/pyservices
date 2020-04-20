@@ -35,11 +35,12 @@ tz_mapping = {
   '/sith': timezone('CET'),
   '/demon': timezone('CET'),
   '/bra': timezone('UTC'),
-  '/demobot': timezone('US/Pacific'),
+  '/demobot': timezone('UTC'),
   '/pug': timezone('US/Eastern'),
   '/japlus': timezone('US/Eastern'),
   '/west_coast_pug': timezone('US/Eastern'),
   '/akl': timezone('US/Eastern'),
+  '/fim': timezone('CET'),
 }
 
 def timezone_for_demo( demo ):

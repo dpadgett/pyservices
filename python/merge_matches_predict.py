@@ -8,10 +8,12 @@ import json
 import shlex
 from os.path import isfile, isdir, join, exists, splitext
 from os import listdir, remove
+import os
 import zipfile
 import sys
 import hashlib
 import struct
+import shutil
 
 from dateutil.parser import *
 from dateutil.tz import *
@@ -106,7 +108,8 @@ def mergedemo(script, filename):
     scriptstr += demofile[1] + ' ' + str(demofile[0]) + ' ' + format_time(startmillis) + "\n"
 
   print 'Merging demos.  Script:'
-  print script
+  #print script
+  print '<redacted>'
   proc = Popen([democutter, scriptfile, filename], stdin=PIPE)
   proc.stdin.write(scriptstr)
   proc.stdin.close()
@@ -139,10 +142,10 @@ def mergematch(match, outdir):
   demometabyid = {}
   clientids = {}
   demofiles = []
-  for player in [i for l in [sc[team] for team in ['b', 'r', 'f'] for sc in match['sc'] ] for i in l]:
+  for player in [i for l in [sc.get(team, []) for team in ['b', 'r', 'f'] for sc in match['sc'] ] for i in l]:
     clientids[player['c']] = False
   for demo in match['d']:
-    clientids[demo['c']] = False#True
+    clientids[demo['c']] = True#False#True
     # overloading this for now
     demosbyid[demo['c']] = '/cygdrive/U/demos/' + demo['id']
     demofiles.append('/cygdrive/U/demos/' + demo['id'])
@@ -208,7 +211,7 @@ def mergematch(match, outdir):
       demodata = None #demodb.find({'_id':'/cygdrive/U/demos/' + demo['id']})[0]
     demometabyid[client] = demodata
     mapidx, map = findmap(demodata['metadata']['maps'], match['_id'])
-    demosbyid[client] = (mapidx, demo['id'])
+    demosbyid[client] = (mapidx, '/cygdrive/U/demos/' + demo['id'])
     for event in map['ctfevents']:
       if 'attacker' in event:
         attacker = event['attacker']
@@ -419,7 +422,7 @@ def mergematch(match, outdir):
   for player in scores['b']:
     description +=  str(player['t']) + ' ' + strip_html(strip_colors(player['n'])) + ' ' + str(player['s']) + "\r\n"
   description += "Red team:\r\n"
-  description += "Time Name Score Caps\r\n"
+  description += "Time Name Score\r\n"
   for player in scores['r']:
     description +=  str(player['t']) + ' ' + strip_html(strip_colors(player['n'])) + ' ' + str(player['s']) + "\r\n"
   description += "\r\nRendered from teh's JKA match database: http://demos.jactf.com/match.html#rpc=lookup&id=" + match['_id']
@@ -469,13 +472,19 @@ if __name__ == '__main__':
   # we want to pass back both the demo file and the json data...
   # seems the simplest way is to either tar or zip the results
   # zip is more portable for users so will use it for now
-  print 'Content-type: application/octet-stream'
-  print 'Content-Disposition: attachment; filename="' + basename(file) + '.zip"'
-  print 'Status: 200 OK'
-  print ''
-
-  zip = Popen(['zip', '-', basename(file), basename(metafile)], cwd=dirname(file))
+  zipfile = splitext(file)[0] + '.zip'
+  zip = Popen(['zip', basename(zipfile), basename(file), basename(metafile)], cwd=dirname(file), stdout=sys.stderr)
   zip.wait()
 
   os.remove(file)
   os.remove(metafile)
+
+  print 'Content-type: application/octet-stream'
+  print 'Content-Disposition: attachment; filename="' + basename(zipfile) + '"'
+  print 'Status: 200 OK'
+  print ''
+
+  with open(zipfile, 'r') as f:
+    shutil.copyfileobj(f, sys.stdout)
+
+  os.remove(zipfile)

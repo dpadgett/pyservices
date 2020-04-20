@@ -350,6 +350,7 @@ if __name__ == '__main__':
           player = best_ip_match
         else:
           player = {'names': [], 'ip_hash': [], 'guid_hash': [], 'num_games': 0, 'num_matches': 0}
+        score = getScore(match, int(client_num))
         had_match = False
         if '_id' in player:
           for summary in playergamedb.find({'_id.player': player['_id'], '_id.match': match['_id']}):
@@ -372,6 +373,9 @@ if __name__ == '__main__':
             if summary['names'] != filtered_names:
               summary['names'] = filtered_names
               dirty = True
+            if summary['score'] != score:
+              summary['score'] = score
+              dirty = True
             if dirty:
               print 'Updated existing playergame', player['_id'], match['_id']
               playergamedb.save(summary)
@@ -385,7 +389,7 @@ if __name__ == '__main__':
           'client_num': int(client_num),
           'names': [],
           'map': match['n'],
-          'score': getScore(match, int(client_num))}
+          'score': score}
         summary['names'] = filtered_names
         if 'matches' in player:
           del player['matches'] #.append(summary)

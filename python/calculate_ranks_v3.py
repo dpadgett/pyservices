@@ -253,6 +253,32 @@ def mergematchmeta(match):
   
   return (finalstats, scores, mapend - mapstart)
 
+# trim the fat of mergematchmeta so it runs fast for elo bot
+import shrinker
+import copy
+def tinystats(tinymatch):
+  db = MongoClient("mongodb").demos
+  metas = [shrinker.inflate(m) for m in db.mindemos.find({'_id': {'$in': [demo['id'] for demo in tinymatch['d']]}})]
+  print 'Read metas:', len(metas)
+  #print shrinker.inflate(metas.next())
+  stats = {}
+  for demodata in metas:
+    mapidx, map = findmap(demodata['metadata']['maps'], tinymatch['_id'])
+    clientid = demodata['metadata']['client']['id']
+    scores = map['scores']
+    for team in ['red', 'blue']:
+      for player in scores.get(team + 'players', []):
+        if player['client'] == clientid:
+          stats[clientid] = {'clientid': clientid, 'team': player['team'], 'playtime': player['time']}
+  match = shrinker.inflate_match(copy.deepcopy(tinymatch))
+  scores = tinymatch['sc'][0]
+  for sc in tinymatch['sc']:
+    if sc['fi']:
+      scores = sc
+      #print 'Found final scores'
+      break
+  return (stats.values(), sc, match['map_end_time'] - match['map_start_time'])
+
 ratings = {}
 
 def updaterank(match):
@@ -264,8 +290,10 @@ def updaterank(match):
   playergames = playergamedb.find({'_id.match': match['_id']}, {'client_num': 1})
   # map client_num -> player
   playermap = {}
+  playergamemap = {}
   for playergame in playergames:
     playermap[playergame['client_num']] = playergame['_id']['player']
+    playergamemap[playergame['_id']['player']] = playergame
   #print playermap
   if playermap == {}:
     print 'No players found'
@@ -298,7 +326,9 @@ def updaterank(match):
       for playergame in playergames:
         break
       if playergame != None:
-        numgames = playergamedb.find({'_id.player': playerid, 'time': {'$lt': match['t']}, 'rating.updated.raw.sigma': {'$exists': True}}).count()
+        #numgames = playergamedb.find({'_id.player': playerid, 'time': {'$lt': match['t']}, 'rating.updated.raw.sigma': {'$exists': True}}).count()
+        # for speed, skipping numgames.  it doesn't do much.
+        numgames = 50
         ratings[playerid] = {'rating': trueskill.Rating(mu=playergame['rating']['updated']['raw']['mu'], sigma=playergame['rating']['updated']['raw']['sigma']), 'games': numgames}
       else:
         ratings[playerid] = {'rating': trueskill.Rating(), 'games': 0}
@@ -317,16 +347,20 @@ def updaterank(match):
   print('{:.1%} chance to draw'.format(quality))
   updates = trueskill.rate(teamratings, ranks=[result['RED'], result['BLUE']], weights=teamtimes)
   print updates
+  pgbulk = playergamedb.initialize_unordered_bulk_op()
+  pbulk = playerdb.initialize_unordered_bulk_op()
   for teamupdate in updates:
     for playerid, update in teamupdate.iteritems():
-      playergames = playergamedb.find({'_id.player': playerid, '_id.match': match['_id']})
-      for playergame in playergames:
-        break
+      #playergames = playergamedb.find({'_id.player': playerid, '_id.match': match['_id']})
+      #for playergame in playergames:
+      #  break
+      playergame = playergamemap[playerid]
       start = ratings[playerid]['rating']
       def ratingObj(rating):
         return {'raw': {'mu': rating.mu, 'sigma': rating.sigma}, 'friendly': trueskill.expose(rating)}
-      playergame['rating'] = {'start': ratingObj(start), 'updated': ratingObj(update)}
-      playergamedb.save(playergame)
+      #playergame['rating'] = {'start': ratingObj(start), 'updated': ratingObj(update)}
+      pgbulk.find({'_id': playergame['_id']}).update_one({'$set': {'rating': {'start': ratingObj(start), 'updated': ratingObj(update)}}})
+      '''
       players = playerdb.find({'_id': playerid})
       player = None
       for player in players:
@@ -336,9 +370,13 @@ def updaterank(match):
       player['rating'] = ratingObj(update)
       if 'matches' in player:
         del player['matches']
-      playerdb.save(player)
+      '''
+      pbulk.find({'_id': playerid}).update_one({'$set': {'rating': ratingObj(update)}})
+      #playerdb.save(player)
       ratings[playerid]['rating'] = update
       ratings[playerid]['games'] += 1
+  print pgbulk.execute()
+  print pbulk.execute()
   return
   expected = {}
   delta = {}
@@ -370,11 +408,14 @@ if __name__ == '__main__':
   playergamedb = db.playerGames
   #matches = list(matchdb.find({'is_match': True}))
   startdate = datetime(2013, 9, 1)
-  lastgame = [g for g in playergamedb.find({'rating.updated.raw.sigma': {'$exists': True}}, {'time': 1}).sort('time', pymongo.DESCENDING).limit(1)]
+  # check for usage of index rather than full row scan.
+  # since $exists cannot be indexed, index is on is_match = true which should have majority matching.
+  # db.playerGames.find({'is_match': true, 'rating.updated.raw.sigma': {'$exists': true}}, {'time':1}).sort({'time':-1}).explain()
+  lastgame = [g for g in playergamedb.find({'is_match': True, 'rating.updated.raw.sigma': {'$exists': True}}, {'time': 1}).sort('time', pymongo.DESCENDING).limit(1)]
   if len(lastgame) > 0:
     print 'Last elo run updated up to', lastgame[0]['time']
     startdate = lastgame[0]['time']
-  #startdate = datetime(2019, 5, 17)
+  #startdate = datetime(2020, 4, 19)
   #startdate = startdate - timedelta(seconds=5)
   i = 0
   while True:
