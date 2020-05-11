@@ -4,7 +4,7 @@ import os
 import urlparse
 
 from pymongo import MongoClient
-from subprocess import Popen
+from subprocess import Popen, PIPE
 
 args = urlparse.parse_qs(urlparse.urlparse(os.environ['REQUEST_URI']).query)
 
@@ -40,5 +40,11 @@ print 'Content-Disposition: attachment; filename="' + ('%d.%s.dm_26' % (clientid
 print 'Status: 200 OK'
 print ''
 
-proc = Popen(args)
+print >> sys.stderr, ' '.join(args)
+
+proc = Popen(args, stdout=sys.stdout)
 proc.wait()
+#import shutil
+#shutil.copyfileobj(proc.stdout, sys.stdout)
+
+#print 'Done'

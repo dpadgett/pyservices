@@ -395,9 +395,15 @@ map_updates = {}
 server_updates = {}
 match_updates = {}
 for demo in demos:
+  '''
+  try:
+    demo = demo.decode('utf8')
+  except:
+    pass
+  '''
   mtime = stat( (demo + u'.dm_meta').encode('utf8') ).st_mtime
   existing_mtime = -1
-  for doc in demodb.find({'_id': demo[len(basedir):]}, { 'mt': 1 }):
+  for doc in demodb.find({'_id': demo[len(basedir):], 'm.m.te': {'$exists': True}}, { 'mt': 1 }):
     if 'mt' in doc:
       existing_mtime = doc['mt'] = doc['mt']
   #if demo in existing_demos and existing_demos[demo] >= mtime:

@@ -415,7 +415,7 @@ if __name__ == '__main__':
   if len(lastgame) > 0:
     print 'Last elo run updated up to', lastgame[0]['time']
     startdate = lastgame[0]['time']
-  #startdate = datetime(2020, 4, 19)
+  #startdate = datetime(2020, 2, 16)
   #startdate = startdate - timedelta(seconds=5)
   i = 0
   while True:

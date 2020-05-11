@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     libjansson4 \
     apache2 \
     nano \
+    ssh \
     zip && \
   pip install trueskill && \
   apt-get remove --purge --auto-remove -y python-pip && apt-get clean && apt-get autoclean

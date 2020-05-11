@@ -20,7 +20,7 @@ import json
 import demometa_lib
 
 # only process last 12 hours folders, since listing all directories eats a lot of cpu
-end_time = parse(commands.getoutput("/bin/date") + ' -0800') + relativedelta(days=-7)#hours=-12)#years=-20)
+end_time = parse(commands.getoutput("/bin/date") + ' -0800') + relativedelta(days=-2)#days=-7)#hours=-12)#years=-20)
 
 def find_demos_dirs():
   global end_time
@@ -34,6 +34,7 @@ def find_demos_dirs():
   #basepaths = [basedir + u'/onasi']
   #basepaths = [basedir + u'/whoracle3']
   #basepaths.append(basedir + u'/demobot')
+  #basepaths = [basedir + u'/fim/autorecord/2020/04']
 
   def shouldCheck(dir):
     dated_folders = demometa_lib.tz_mapping.keys()
@@ -131,7 +132,10 @@ def find_demos_fixed():
     for demo in f:
       yield demo.rstrip('\n').rstrip('\r')
 
-def find_demos():
+def joinutf8(d,f):
+  return join(d.decode('utf-8'),f.decode('utf-8')).encode('utf-8')
+
+def find_demos_real():
   #for d in find_demos_fixed():
   #  yield d
   #return
@@ -140,15 +144,73 @@ def find_demos():
     print 'Processing', d
     for file in listdir(d):
       print 'Processing', file
-      if (file.endswith(".dm_26") or file.endswith(".dm_25")) and not ".dm_meta" in file and (not exists(join(d,file + ".dm_meta"))
-          or not check_metadata(join(d,file))):
-        yield join(d,file)
+      if (file.endswith(".dm_26") or file.endswith(".dm_25")) and not ".dm_meta" in file and (not exists(joinutf8(d,file + ".dm_meta"))
+          or not check_metadata(joinutf8(d,file))):
+        yield joinutf8(d,file).decode('utf-8')
   #demos = [ join(d,file) for d in directories for file in listdir(d)
   #  if (file.endswith(".dm_26") or file.endswith(".dm_25")) and not ".dm_meta" in file and (not exists(join(d,file + ".dm_meta"))
   #    or not check_metadata(join(d,file))) ]
   #return demos
 
+import pymongo
+from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
+from pymongo.errors import BulkWriteError
+import traceback
 def find_demos_all():
+  #for d in find_demos_all_real():
+  #  yield d
+  #return
+  basedir = u'/cygdrive/U/demos'
+  db = MongoClient("mongodb").demos
+  mindemodb = db.mindemos
+  #db.mindemos.find({'m.m.n': {'$exists': true},'m.m.te': {'$exists': false},'t':{'$gt': new Date('2015-08-03')}}).count()
+  #demos = mindemodb.find({'m.m.n': {'$exists': True},'m.m.te': {'$exists': False},'t':{'$gt': datetime.datetime(2015, 8, 3)}}, {'_id':1}).limit(100).batch_size(30)
+  demos = mindemodb.find({'m.v': 5}, {'_id':1}).limit(100).batch_size(30)
+  for demo in demos:
+    print demo['_id'].encode('utf-8')
+    yield (basedir + '/' + demo['_id'])
+
+def find_demos():
+  #exit(1)
+  basedir = u'/cygdrive/U/demos'
+  db = MongoClient("mongodb").demos
+  mindemodb = db.mindemos
+  minmatchdb = db.minmatches
+  count = 0
+  #db.mindemos.find({'m.v':{'$ne':5},'t':{'$gt': new Date(2016, 8, 15)},'ma':true}).count()
+  #db.mindemos.find({'m.v':{'$ne':5},'t':{'$gt': new Date(2016, 8, 15)}}).count()
+  #demos = mindemodb.find({'m.v':{'$ne':5},'ma':True,'t':{'$gt': datetime.datetime(2016, 8, 15)}}, {'_id':1}).limit(400).batch_size(10)
+  demos = mindemodb.find({'m.v':{'$ne':5},'t':{'$gt': datetime.datetime(2016, 8, 15)}}, {'_id':1}).limit(400).batch_size(10)
+  '''
+  matches = minmatchdb.find({'ma':True,'t':{'$gt': datetime.datetime(2016, 8, 15)}},{'d':1}).sort('t', pymongo.ASCENDING).batch_size(2)
+  tzone = timezone('US/Pacific')
+  for match in matches:
+    print match['_id']
+    demos = [{'_id': d['id']} for d in match['d']]
+    for demo in demos:
+      file = (basedir + '/' + demo['_id'])
+      d = ''
+      if (exists(joinutf8(d,file + ".dm_meta"))):
+        metastat = stat(joinutf8(d,file + ".dm_meta"))
+        if tzone.localize(datetime.datetime.fromtimestamp(metastat.st_mtime), is_dst=True) >= tzone.localize(datetime.datetime(2020, 5, 4, 4, 47), is_dst=True):
+          continue
+      print demo['_id'].encode('utf-8')
+      count += 1
+      yield file
+      if count >= 400:
+        return
+  '''
+  for demo in demos:
+    file = (basedir + '/' + demo['_id'])
+    print demo['_id'].encode('utf-8')
+    count += 1
+    yield file
+  if count == 0:
+    print 'All demos verified'
+    exit(1) # to break bash loop
+
+def find_demos_all_real():
   #for d in find_demos_fixed():
   #  yield d
   #return
@@ -160,8 +222,8 @@ def find_demos_all():
       if ".dm_meta" in file:
         continue
       try:
-        demostat = stat(join(d,file))
-        metastat = stat(join(d,file + ".dm_meta"))
+        demostat = stat(joinutf8(d,file))
+        metastat = stat(joinutf8(d,file + ".dm_meta"))
       except os.error:
         # file did not exist
         continue
@@ -170,7 +232,7 @@ def find_demos_all():
         continue
       if (tzone.localize(datetime.datetime.fromtimestamp(metastat.st_mtime), is_dst=True) >= end_time
           and demostat.st_mtime <= metastat.st_mtime):
-        yield join(d,file)
+        yield joinutf8(d,file).decode('utf-8')
   #demos = [ join(d,file) for d in directories for file in listdir(d)
   #  if not ".dm_meta" in file and (exists(join(d,file + ".dm_meta"))
   #    and tzone.localize(datetime.datetime.fromtimestamp(stat(join(d,file + ".dm_meta")).st_mtime), is_dst=True) >= end_time

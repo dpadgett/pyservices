@@ -23,22 +23,30 @@ def merge_history(datas, matchid, name):
   if minversion >= 4:
     keysuffix = '_raw'
   history = {}
-  names = name + 's'
+  if name == 'newmod':
+    names = name
+    valuename = 'newmod_id'
+  else:
+    names = name + 's'
+    valuename = name
   sort_values = lambda value_list: value_list.sort(cmp = lambda x, y: x[name + '_start_time' + keysuffix] - y[name + '_start_time' + keysuffix])
   for data in datas:
     mapidx, map = findmap(data['maps'], matchid)
-    for (client_id, value_list) in map[names].items():
+    for (client_id, value_list) in map.get(names, {}).items():
       if ( not history.has_key(client_id) ):
         history[client_id] = []
       for value in value_list:
         if value[name + '_start_time' + keysuffix] > value[name + '_end_time' + keysuffix]:
           continue
         for current_value in history[client_id]:
-          if ( not name in value ):
-            raise Exception('Error: value missing name: ' + str(value) + ' for client ' + str(data['client']['id']) + ' on map ' + map['mapname'])
+          if ( not valuename in value ):
+            if valuename == 'newmod_id':
+              value[valuename] = ''
+            else:
+              raise Exception('Error: value missing name: ' + str(value) + ' for client ' + str(data['client']['id']) + ' on map ' + map['mapname'])
           if ( value[name + '_start_time' + keysuffix] <= current_value[name + '_end_time' + keysuffix] and
               value[name + '_end_time' + keysuffix] >= current_value[name + '_start_time' + keysuffix] and
-              value[name] == current_value[name] ):
+              value[valuename] == current_value[valuename] ):
             current_value[name + '_end_time' + keysuffix] = max( current_value[name + '_end_time' + keysuffix], value[name + '_end_time' + keysuffix] )
             current_value[name + '_start_time' + keysuffix] = min( current_value[name + '_start_time' + keysuffix], value[name + '_start_time' + keysuffix] )
             for key in value.keys():
@@ -76,7 +84,7 @@ def merge_history(datas, matchid, name):
             value = value_list[idx]
             while idx < len(value_list) - 1:
               next_value = value_list[idx + 1]
-              if value[name + '_end_time' + keysuffix] == next_value[name + '_start_time' + keysuffix] and value[name] == next_value[name]:
+              if value[name + '_end_time' + keysuffix] == next_value[name + '_start_time' + keysuffix] and value[valuename] == next_value[valuename]:
                 value[name + '_end_time' + keysuffix] = max( value[name + '_end_time' + keysuffix], next_value[name + '_end_time' + keysuffix] )
                 del value_list[idx + 1]
               else:

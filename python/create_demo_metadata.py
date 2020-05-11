@@ -30,17 +30,36 @@ demolist = []
 
 procs = []
 for demo in demos:
-  print 'Processing demo: ' + demo.encode('utf8')
   try:
-    demofd = open( demo, u'rb' )
-    demometafd = open( demo + u'.dm_meta', u'wb' )
+    demo = demo.encode('utf8')
   except:
-    print traceback.format_exc()
-    print sys.exc_info()#[0]
-    continue
-  demolist.append(demo)
-  timestamp = time.time()
-  procs.append([Popen([demoparser, '-'], stdout=demometafd, stdin=demofd), demofd, demometafd, demo + u'.dm_meta', timestamp])
+    pass
+  print 'Processing demo: ' + demo
+  test = (demo.decode('utf8') + u'.dm_meta').encode('utf8')
+  print test
+  #exit()
+  if len(sys.argv) <= 2:
+    try:
+      demofd = open( demo, u'rb' )
+      demometafd = open( test, u'wb' )
+    except:
+      print traceback.format_exc()
+      print sys.exc_info()#[0]
+      continue
+    demolist.append(demo.decode('utf8'))
+    timestamp = time.time()
+    procs.append([Popen([demoparser, '-'], stdout=demometafd, stdin=demofd), demofd, demometafd, test, timestamp])
+  else:
+    try:
+      demofd = open( '/dev/null', u'rb' )
+      demometafd = open( '/dev/null', u'wb' )
+    except:
+      print traceback.format_exc()
+      print sys.exc_info()#[0]
+      continue
+    demolist.append(demo.decode('utf8'))
+    timestamp = time.time()
+    procs.append([Popen([demoparser, demo]), demofd, demometafd, test, timestamp])
   if len( procs ) > maxprocs:
     procs[0][0].wait()
     procs[0][1].close()
@@ -56,7 +75,8 @@ for proc in procs:
 
 print 'Finished creating metadata, populating DB'
 
-sys.argv[1:] = demolist
-
-#execfile('/home/pyservices/populate_db.py')
-execfile('/home/pyservices/populate_db_lite.py')
+if len(demolist) > 0:
+  sys.argv[1:] = demolist
+  
+  #execfile('/home/pyservices/populate_db.py')
+  execfile('/home/pyservices/populate_db_lite.py')

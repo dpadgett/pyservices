@@ -39,6 +39,7 @@ tz_mapping = {
   '/pug': timezone('US/Eastern'),
   '/japlus': timezone('US/Eastern'),
   '/west_coast_pug': timezone('US/Eastern'),
+  '/west_coast_pug2': timezone('US/Pacific'),
   '/akl': timezone('US/Eastern'),
   '/fim': timezone('CET'),
 }

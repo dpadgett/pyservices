@@ -30,6 +30,28 @@ def minimize_name(name):
 def inflate_name(name):
   rekey(name, namemapping())
 
+def teammapping():
+  return {
+    't': 'team',
+    's': 'team_start_time',
+    'e': 'team_end_time',
+    'sr': 'team_start_time_raw',
+    'er': 'team_end_time_raw'}
+
+def newmodmapping():
+  return {
+    'i': 'newmod_id',
+    's': 'newmod_start_time',
+    'e': 'newmod_end_time',
+    'sr': 'newmod_start_time_raw',
+    'er': 'newmod_end_time_raw'}
+
+def minimize_team(team):
+  rekey(team, invert(teammapping()))
+
+def inflate_team(team):
+  rekey(team, teammapping())
+
 def playermapping():
   return {
     'c': 'client',
@@ -73,6 +95,8 @@ def mapmapping():
     'e': 'map_end_time',
     'sc': 'scores',
     'na': 'names',
+    'te': 'teams',
+    'nm': 'newmod',
     'ma': 'is_match',
     'h': 'match_hash'}
 
@@ -81,6 +105,10 @@ def minimize_map(map):
     for clientid, names in map['names'].iteritems():
       for name in names:
         minimize_name(name)
+  if 'teams' in map:
+    for clientid, teams in map['teams'].iteritems():
+      for team in teams:
+        minimize_team(team)
   if 'scores' in map:
     minimize_scores(map['scores'])
   rekey(map, invert(mapmapping()))
@@ -93,6 +121,14 @@ def inflate_map(map):
     for clientid, names in map['names'].iteritems():
       for name in names:
         inflate_name(name)
+  if 'teams' in map:
+    for clientid, teams in map['teams'].iteritems():
+      for team in teams:
+        inflate_team(team)
+
+def minimize_map_path(path):
+  # TODO: scores, names, teams
+  path[0] = invert(mapmapping())[path[0]]
 
 def metadatamapping():
   return {
@@ -117,6 +153,13 @@ def inflate_metadata(metadata):
     for map in metadata['maps']:
       inflate_map(map)
   return metadata
+
+def minimize_metadata_path(path):
+  if path[0] == 'maps':
+    elem = path.pop(0)
+    minimize_map_path(path)
+    path.insert(0, elem)
+  path[0] = invert(metadatamapping())[path[0]]
 
 def toplevelmapping():
   return {
@@ -143,6 +186,22 @@ def inflate(data):
   if 'metadata' in data:
     inflate_metadata(data['metadata'])
   return data
+
+def minimize_path(path):
+  if path[0] == 'metadata':
+    elem = path.pop(0)
+    minimize_metadata_path(path)
+    path.insert(0, elem)
+  path[0] = invert(toplevelmapping())[path[0]]
+
+# minimize field names for projection
+def minimize_proj(proj):
+  for key, value in proj.items():
+    del proj[key]
+    path = key.split('.')
+    minimize_path(path)
+    key = '.'.join(path)
+    proj[key] = value
 
 def matchmapping():
   return {
@@ -187,3 +246,16 @@ def inflate_match(data):
   if 'metadata' in data:
     inflate_metadata(data['metadata'])
   return data
+
+def minimize_match_path(path):
+  # TODO: scores, demos
+  path[0] = invert(matchmapping())[path[0]]
+
+# minimize field names for projection
+def minimize_match_proj(proj):
+  for key, value in proj.items():
+    del proj[key]
+    path = key.split('.')
+    minimize_match_path(path)
+    key = '.'.join(path)
+    proj[key] = value
