@@ -99,10 +99,7 @@ for demo in demos:
     allnames = [map['names'][str(demometa['client']['id'])] for map in demometa['maps'] if 'names' in map and str(demometa['client']['id']) in map['names']]
     allnames = [name for names in allnames for name in names]
     for name in allnames:
-      if name['name'] in namefreq:
-        curval = namefreq[name['name']]
-      else:
-        curval = 0
+      curval = namefreq.get(name['name'], 0)
       namefreq[name['name']] = curval + name['name_end_time'] - name['name_start_time']
     maxnametime = 0
     maxname = ''

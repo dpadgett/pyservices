@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y \
     python-falcon \
     python-dateutil \
     python-tz \
-    python-pymongo \
     python-mpmath \
     python-pip \
     libjansson4 \
@@ -16,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     nano \
     ssh \
     zip && \
-  pip install trueskill && \
+  pip install trueskill pymongo && \
   apt-get remove --purge --auto-remove -y python-pip && apt-get clean && apt-get autoclean
 
 RUN cp /usr/share/i18n/charmaps/CP1252.gz /tmp && \

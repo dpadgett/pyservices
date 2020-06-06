@@ -38,12 +38,12 @@ def merge_history(datas, matchid, name):
       for value in value_list:
         if value[name + '_start_time' + keysuffix] > value[name + '_end_time' + keysuffix]:
           continue
+        if ( not valuename in value ):
+          if valuename == 'newmod_id':
+            value[valuename] = ''
+          else:
+            raise Exception('Error: value missing name: ' + str(value) + ' for client ' + str(data['client']['id']) + ' on map ' + map['mapname'])
         for current_value in history[client_id]:
-          if ( not valuename in value ):
-            if valuename == 'newmod_id':
-              value[valuename] = ''
-            else:
-              raise Exception('Error: value missing name: ' + str(value) + ' for client ' + str(data['client']['id']) + ' on map ' + map['mapname'])
           if ( value[name + '_start_time' + keysuffix] <= current_value[name + '_end_time' + keysuffix] and
               value[name + '_end_time' + keysuffix] >= current_value[name + '_start_time' + keysuffix] and
               value[valuename] == current_value[valuename] ):

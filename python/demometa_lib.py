@@ -36,7 +36,8 @@ tz_mapping = {
   '/demon': timezone('CET'),
   '/bra': timezone('UTC'),
   '/demobot': timezone('UTC'),
-  '/pug': timezone('US/Eastern'),
+  # it switched to UTC at some point.  old demos probably use US/Eastern though.
+  '/pug': timezone('UTC'),#timezone('US/Eastern'),
   '/japlus': timezone('US/Eastern'),
   '/west_coast_pug': timezone('US/Eastern'),
   '/west_coast_pug2': timezone('US/Pacific'),

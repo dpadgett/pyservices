@@ -97,10 +97,10 @@ def mergematchmeta(match):
     #demodata = demodb.find({'_id':'/cygdrive/U/demos/' + demo['id']})[0]
     #demodata = shrinker.inflate(mindemodb.find({'_id': demo['id']})[0])
     try:
-      with open('/cygdrive/U/demos/' + demo['id'] + '.dm_meta') as metaf:
+      with open(('/cygdrive/U/demos/' + demo['id'] + '.dm_meta').encode('utf-8')) as metaf:
         demodata = {'_id': '/cygdrive/U/demos/' + demo['id'], 'metadata': json.loads(metaf.read())}
     except:
-      print 'failed to find', demo['id']
+      print 'failed to find', demo['id'].encode('utf-8')
       continue
     demo['meta'] = demodata['metadata']
     mapidx, map = findmap(demodata['metadata']['maps'], match['_id'])
@@ -417,6 +417,7 @@ if __name__ == '__main__':
     startdate = lastgame[0]['time']
   #startdate = datetime(2020, 2, 16)
   #startdate = startdate - timedelta(seconds=5)
+  #startdate = datetime(2020, 5, 17, 22, 30, 50)
   i = 0
   while True:
     matches = matchdb.find({'ma': True, 't': {'$gt': startdate}}).sort('t', 1)#.limit(1000)
