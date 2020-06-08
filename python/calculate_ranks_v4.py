@@ -208,29 +208,45 @@ if __name__ == '__main__':
   sessiongamedb = db.sessionGames
   sessionplayerdb = db.sessionPlayers
   
-  '''
-  ratingdb.drop()
-  ratingdb.create_index([('time',1)])
-  ratingdb.create_index([('_id.player',1), ('time',-1)])
-  sessionplayerdb.update_many({'rating': {'$exists': True}}, {'$unset': {'rating':1}})
-  '''
-  
+  if len(sys.argv) > 1 and sys.argv[1] == 'reset':
+    ratingdb.drop()
+    ratingdb.create_index([('time',1)])
+    ratingdb.create_index([('_id.player',1), ('time',-1)])
+    sessionplayerdb.update_many({'rating': {'$exists': True}}, {'$unset': {'rating':1}})
+    sys.argv.pop()
+
   #matches = list(matchdb.find({'is_match': True}))
-  #startdate = datetime(2013, 9, 1)
-  startdate = [g for g in sessiongamedb.find({'is_match': True}, {'time': 1}).sort('time', pymongo.ASCENDING).limit(1)][0]['time'] - timedelta(seconds=1)
+  startdate = datetime(2016, 8, 17)
+  #startdate = [g for g in sessiongamedb.find({'is_match': True}, {'time': 1}).sort('time', pymongo.ASCENDING).limit(1)][0]['time'] - timedelta(seconds=1)
+  #print startdate
+  #exit()
   # check for usage of index rather than full row scan.
   # since $exists cannot be indexed, index is on is_match = true which should have majority matching.
   # db.playerGames.find({'is_match': true, 'rating.updated.raw.sigma': {'$exists': true}}, {'time':1}).sort({'time':-1}).explain()
-  lastgame = [g for g in ratingdb.find({}, {'time': 1}).sort('time', pymongo.DESCENDING).limit(1)]
-  if len(lastgame) > 0:
-    print 'Last elo run updated up to', lastgame[0]['time']
-    startdate = lastgame[0]['time']
+  if len(sys.argv) <= 1:
+    lastgame = [g for g in ratingdb.find({}, {'time': 1}).sort('time', pymongo.DESCENDING).limit(1)]
+    if len(lastgame) > 0:
+      print 'Last elo run updated up to', lastgame[0]['time']
+      startdate = lastgame[0]['time']
+    #startdate = datetime(2020, 6, 7)
+    startdate -= timedelta(days=1)
+    '''
+    allmatches = set([m['_id'] for m in matchdb.find({'ma': True, 't': {'$gt': startdate}}, {})])
+    rerun = [id for id in allmatches if id not in set(ratingdb.distinct('_id.match', {'_id.match': {'$in': list(allmatches)}}))]
+    sys.argv += rerun
+    print len(rerun)
+    if len(rerun) == 0:
+      exit()
+    '''
   #startdate = datetime(2020, 2, 16)
   #startdate = startdate - timedelta(seconds=5)
   #startdate = datetime(2020, 5, 17, 22, 30, 50)
   i = 0
   while True:
-    matches = matchdb.find({'ma': True, 't': {'$gt': startdate}}).sort('t', 1)#.limit(1000)
+    if len(sys.argv) > 1:
+      matches = matchdb.find({'_id': {'$in': sys.argv[1:]}}).sort('t', 1)
+    else:
+      matches = matchdb.find({'ma': True, 't': {'$gt': startdate}}).sort('t', 1)#.limit(1000)
     #matches = matchdb.find({'_id': '038ac62eeb06d6a1'}).sort('t', 1)
     try:
       for match in matches:

@@ -101,7 +101,7 @@ if args['rpc'] == ['endmatch']:
   demo = args['demo'][0]
   origstdin = sys.stdin
   sys.stdin = StringIO.StringIO(json.dumps({'demo': demo}))
-  run('endmatch2.py', [])
+  run('endmatch3.py', [])
   sys.stdin = origstdin
 elif args['rpc'] == ['newdemos']:
   for arg in ['since']:

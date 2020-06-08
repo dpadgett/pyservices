@@ -64,21 +64,34 @@ def checkmerge():
   allowed = ip == '135.180.87.144'
   return allowed
 
+def search_players(searchplayers):
+  playerdb = db.sessionPlayers
+  sessiondb = db.sessions
+  response = []
+  for sessionid in searchplayers:
+    #print player
+    playerids = sessiondb.distinct('playerid', {'_id': sessionid, 'playerid': {'$exists': True}})
+    #print playerids
+    players = [p for p in playerdb.find({'_id': {'$in': playerids}, 'rating': {'$exists': True}})]
+    #print players
+    result_arr = []
+    for p in players:
+      if 'name' in p:
+        p['name'] += u' \u00ae'
+      result_obj = {'name': p.get('name', p['last_name']), 'rating': p['rating']}
+      result_arr.append(result_obj)
+    response.append({'result': result_arr})
+  return response
+
 if rpc == 'teams':
-  playerdb = db.players
   scriptargs = []
-  for team in ['RED', 'BLUE']:
-    scriptargs.append(team[0])
-    for (ip_hash, guid_hash) in zip(args.get(team + '_id1[]', []), args.get(team + '_id2[]', [])):
-      #print team, ip_hash, guid_hash
-      matches = playerdb.find({'$or': [{'guid_hash.guid': int(guid_hash)}, {'ip_hash.ip': int(ip_hash)}]})
-      rating = None
-      for match in matches:
-        if 'rating' in match and 'raw' in match['rating']:
-          rating = match['rating']['raw']
-          break
-      #print rating
-      if rating != None:
+  req = bson.json_util.loads(body)
+  for team in ['red', 'blue']:
+    scriptargs.append(team[0].upper())
+    for player in search_players(req[team]):
+      player = player['result']
+      if len(player) > 0:
+        rating = player[0]['rating']['raw']
         scriptargs.append("%f,%f" % (rating['mu'],rating['sigma']))
       else:
         scriptargs.append('unknown')
@@ -150,3 +163,15 @@ elif rpc == 'setname':
   playerdb = db.sessionPlayers
   updated = playerdb.find_one_and_update({'_id': bson.ObjectId(body['id'])}, {'$set': {'name': body['name']}})
   print wrap_result(updated)
+elif rpc == 'searchplayer':
+  playerdb = db.sessionPlayers
+  sessiondb = db.sessions
+  if body != '':
+    searchplayers = json.loads(body)
+  else:
+    sessionid = {'ip': int(args['ip'][0]), 'guid': int(args['guid'][0])}
+    if 'newmod_id' in args:
+      sessionid['newmod_id'] = args['newmod_id'][0]
+    searchplayers = [sessionid]
+  response = search_players(searchplayers)
+  print wrap_result(response)

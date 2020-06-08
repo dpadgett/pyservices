@@ -256,10 +256,14 @@ if __name__ == '__main__':
     print bulk.execute()
   except BulkWriteError as bwe:
     print bwe.details
+  except InvalidOperation as ivo:
+    print ivo
   try:
     print sessbulk.execute()
   except BulkWriteError as bwe:
     print bwe.details
+  except InvalidOperation as ivo:
+    print ivo
   try:
     print sessplayerbulk.execute()
   except BulkWriteError as bwe:

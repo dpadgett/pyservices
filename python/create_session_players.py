@@ -19,6 +19,7 @@ import pymongo
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 from pymongo.errors import BulkWriteError
+from pymongo.errors import InvalidOperation
 import traceback
 
 import merge_metadata
@@ -149,10 +150,14 @@ if __name__ == '__main__':
         print bulk.execute()
       except BulkWriteError as bwe:
         print bwe.details
+      except InvalidOperation as ivo:
+        print ivo
       try:
         print sessbulk.execute()
       except BulkWriteError as bwe:
         print bwe.details
+      except InvalidOperation as ivo:
+        print ivo
       bulk = sessionplayerdb.initialize_unordered_bulk_op()
       sessbulk = sessiondb.initialize_unordered_bulk_op()
     #break
@@ -165,7 +170,11 @@ if __name__ == '__main__':
     print bulk.execute()
   except BulkWriteError as bwe:
     print bwe.details
+  except InvalidOperation as ivo:
+    print ivo
   try:
     print sessbulk.execute()
   except BulkWriteError as bwe:
     print bwe.details
+  except InvalidOperation as ivo:
+    print ivo

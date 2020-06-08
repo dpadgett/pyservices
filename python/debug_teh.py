@@ -82,6 +82,8 @@ if __name__ == '__main__':
     if len(skz) > 0 and len(duck) > 0:
       print s, names
   '''
+  
+  '''
   ids = [m['_id']['session'] for m in sessiongamedb.find({'_id.match': '22f6e4eb467f9fc0'}, {})]
   ids.sort()
   for id in ids:
@@ -89,3 +91,10 @@ if __name__ == '__main__':
   games = [m for m in sessiongamedb.find({'_id.match': '22f6e4eb467f9fc0', '_id.session.guid': 31740})]
   for game in games:
     print game['_id'], [n['name'] for g in game['games'] for n in g['names']]
+  '''
+  
+  # resets player mapping for 1 player id
+  resetplayerid = ObjectId('55dc4895cb15c73790d86427')
+  sessionplayerdb.delete_one({'_id': resetplayerid})
+  sessiondb.update_many({'playerid': resetplayerid}, {'$unset': {'playerid':1}})
+  ratingdb.delete_many({'_id.player': resetplayerid})

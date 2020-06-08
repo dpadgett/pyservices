@@ -7,6 +7,7 @@ import urlparse
 
 from pymongo import MongoClient
 import pymongo
+from pymongo.errors import BulkWriteError
 
 from bson.objectid import ObjectId
 import json
@@ -28,7 +29,11 @@ def merge_players(ids):
     for rating in ratings:
       rating['_id']['player'] = ids[0]
     ratingdb.delete_many({'_id.player': id})
-    ratingdb.insert_many(ratings)
+    if len(ratings) > 0:
+      try:
+        ratingdb.insert_many(ratings)
+      except BulkWriteError as bwe:
+        print bwe.details
   # fix last_name field
   session = None
   for session in sessiondb.find({'playerid': ids[0]}).sort('last_game', pymongo.DESCENDING).limit(1):
