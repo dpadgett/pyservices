@@ -114,6 +114,8 @@ if __name__ == '__main__':
     '''
     for sessiongame in sessiongamedb.find().sort('time', pymongo.DESCENDING).limit(1):
       start = sessiongame['time']
+      #start += datetime.timedelta(days=-21)
+      start += datetime.timedelta(hours=-3)
       print 'Start:', start
     matches = matchdb.find({'t': {'$gt': start}}).sort('t', pymongo.ASCENDING).skip(0).batch_size(30)
     

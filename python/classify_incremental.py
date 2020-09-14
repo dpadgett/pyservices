@@ -23,45 +23,64 @@ db = MongoClient("mongodb").demos
 demodb = db.mindemos
 matchdb = db.minmatches
 
-playerid = ObjectId('55dc3d0acb15c73790d832d7')
+#playerid = ObjectId('55dc3d0acb15c73790d832d7')
+playerid = ObjectId('587e9074cb15c72b8445f912')
 
 #alldemos = [demo for match in matches for demo in match['demos'] if not ('/psychodelic' in demo['id'])]
 #alldemos = [demo for match in matchdb.find({'t': {'$gt': datetime.datetime.now() - datetime.timedelta(days=3)}, 'ma': True}, {'d.id'}) for demo in match['d']]
 sessiondb = db.sessions
 sessiongamedb = db.sessionGames
-sessionids = sessiondb.distinct('_id', {'playerid': playerid})
-games = [game for game in sessiongamedb.find({'_id.session': {'$in': sessionids}, 'time': {'$gt': datetime.datetime.now() - datetime.timedelta(days=30)}, 'is_match': True}).sort('time', pymongo.DESCENDING)]
-#alldemos = [demo for match in matchdb.find({'t': {'$gt': datetime.datetime.now() - datetime.timedelta(days=30)}, 'ma': True}, {'d.id'}) for demo in match['d']]
-alldemos = [{'id': demo} for game in games for onegame in game['games'] for demo in onegame['demos']]
-examples = []
-exampleids = []
+#sessionids = sessiondb.distinct('_id', {'playerid': playerid})
+#games = sessiongamedb.find({'_id.session': {'$in': sessionids}, 'time': {'$gt': datetime.datetime.now() - datetime.timedelta(days=30)}, 'is_match': True}).sort('time', pymongo.DESCENDING)
+games = sessiongamedb.find({'time': {'$gt': datetime.datetime.now() - datetime.timedelta(days=365)}, 'is_match': True}).sort('time', pymongo.DESCENDING)
 
-for demo in alldemos:
-  try:
-    print 'Processing', demo['id']
-    with open('/cygdrive/U/demos/' + demo['id'] + '.dm_meta', 'r') as f:
-      demodata = {'metadata': json.loads(f.read())}
-    map = demodata['metadata']['maps'][0]
-    for amap in demodata['metadata']['maps']:
-      #print 'map duration: %d' % (amap['map_end_time'] - amap['map_start_time'])
-      if amap['map_end_time'] - amap['map_start_time'] > map['map_end_time'] - map['map_start_time']:
-        map = amap
-    frags = map['ownfrags']
-    for frag in frags:
-      exampleids.append([demo['id'], frag])
-      examples.append(make_example(frag, map))
-    print 'found', len(examples), 'frags'
-  except KeyboardInterrupt:
-    raise
-  except:
-    print traceback.format_exc()
-    print 'had an error, skipping'
+bulk = sessiongamedb.initialize_ordered_bulk_op()
 
-scaledexamples = scaler.transform(examples)
+for game in games:
+  print 'Processing game', game['_id']
+  for onegame in game['games']:
+    shots = []
+    for idx, demo in enumerate(onegame['demos']):
+      examples = []
+      exampleids = []
+      try:
+        print 'Processing', demo
+        with open('/cygdrive/U/demos/' + demo + '.dm_meta', 'r') as f:
+          demodata = {'metadata': json.loads(f.read())}
+        map = demodata['metadata']['maps'][0]
+        for amap in demodata['metadata']['maps']:
+          #print 'map duration: %d' % (amap['map_end_time'] - amap['map_start_time'])
+          if amap['map_end_time'] - amap['map_start_time'] > map['map_end_time'] - map['map_start_time']:
+            map = amap
+        frags = map['ownfrags']
+        for frag in frags:
+          exampleids.append([demo, frag])
+          examples.append(make_example(frag, map))
+        print 'found', len(examples), 'frags'
+        if len(examples) == 0:
+          continue
+      except KeyboardInterrupt:
+        raise
+      except:
+        print traceback.format_exc()
+        print 'had an error, skipping'
+        continue
+      
+      scaledexamples = scaler.transform(examples)
 
-results = clf.predict(scaledexamples)
-print len([[results[i], i] for i in range(0,len(results)) if results[i] > 1.5])
+      results = clf.predict(scaledexamples)
+      print 'found %d nice shots' % (len([[results[i], i] for i in range(0,len(results)) if results[i] > 1.5]))
+      print [exampleids[i][1] for i, result in enumerate(results) if result > 1.5]
+      shots.extend([{'score': result, 'time': exampleids[i][1]['time'], 'd': idx} for i, result in enumerate(results) if result > 1.5])
+    onegame['ns'] = {'v': 1, 't': datetime.datetime.now(), 'shots': shots}
+    print onegame['ns']
+    #del game['ns']
+    bulk.find({'_id': game['_id']}).replace_one(game)
 
+result = bulk.execute()
+print(result)
+
+'''
 from subprocess import Popen, PIPE, call
 from os import listdir, stat, remove
 from os.path import isfile, isdir, join, exists, basename
@@ -71,7 +90,7 @@ democutter = u'/home/pyservices/demotrimmer'
 def format_time(time):
   return ("%02d" % (time / 1000 / 60 / 60)) + ':' + ("%02d" % (time / 1000 / 60 % 60)) + ':' + ("%02d" % (time / 1000 % 60)) + '.' + ("%03d" % (time % 1000))
 def strip_non_ascii(string):
-  ''' Returns the string without non ASCII characters'''
+  # Returns the string without non ASCII characters
   stripped = (c for c in string if 0 < ord(c) < 127)
   return ''.join(stripped)
 print 'Best overall frags:'
@@ -87,3 +106,4 @@ for nice_frag in [[results[i], exampleids[i]] for i in range(0,len(results)) if 
   proc.wait()
   demofd.close()
   demometafd.close()
+'''

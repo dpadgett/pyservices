@@ -16,6 +16,13 @@ import bson.json_util
 
 import shrinker
 
+from dateutil.parser import *
+from dateutil.tz import *
+#from datetime import *
+import datetime
+from dateutil.relativedelta import *
+from pytz import timezone
+
 def run(script, args):
   cwd = '/home/pyservices/'
   if script[0:1] != '/':
@@ -91,6 +98,15 @@ def read_matches(cursor):
           demo['player'] = str(sessions[bson.json_util.dumps(sg['_id']['session'])]['playerid'])
           if demo['player'] in ratings:
             demo['rating'] = ratings[demo['player']]['rating']
+          for g in sg['games']:
+            if demo['id'][len('/cygdrive/U/demos/'):] not in g['demos']:
+              continue
+            if 'ns' not in g:
+              continue
+            idx = g['demos'].index(demo['id'][len('/cygdrive/U/demos/'):])
+            shots = [shot for shot in g['ns']['shots'] if shot['d'] == idx]
+            if shots != []:
+              demo['ns'] = shots
     matches.append(match)
   return matches
 
@@ -111,14 +127,44 @@ elif args['rpc'] == ['newdemos']:
   since = int(args['since'][0])
   run('newdemos.py', [since])
   exit()
-elif args['rpc'] == ['recentmatches']:
+elif args['rpc'] == ['recentmatches'] or args['rpc'] == ['searchmatches'] :
   db = MongoClient("mongodb").demos
   matchdb = db.minmatches
 
   limit = int(args.get('limit', ['5'])[0])
   offset = int(args.get('offset', ['0'])[0])
 
-  cursor = matchdb.find({'ma': True}).sort('t', -1)
+  if args['rpc'] == ['recentmatches']:
+    query = {'ma': True}
+  else:
+    # searchmatches
+    query = {}
+    if 'before' in args:
+      query['t'] = {'$lte': datetime.datetime.fromtimestamp(int(args['before'][0]))}
+    if 'map' in args:
+      query['n'] = args['map'][0]
+    if 'server' in args:
+      query['h'] = args['server'][0]
+    if 'match' in args:
+      query['ma'] = args['match'][0] == 'true'
+    if 'player' in args:
+      #$query['demos'] = array('$elemMatch' => array('name' => $_GET['player']));
+      if 'ma' in query:
+        # duplicate it so that it uses the index
+        nameor = []
+        for team in ['b', 'r', 'f', 's']:
+          teamquery = dict(query)
+          teamquery['sc.%s.n' % (team)] = args['player'][0]
+          nameor.append(teamquery)
+        query = {'$or': nameor}
+      else:
+        query['$or'] = [
+            {'sc.b.n': args['player'][0]},
+            {'sc.r.n': args['player'][0]},
+            {'sc.f.n': args['player'][0]},
+            {'sc.s.n': args['player'][0]}]
+
+  cursor = matchdb.find(query).sort('t', -1)
   total = cursor.count()
   cursor = cursor.skip(offset).limit(limit)
   matches = read_matches(cursor)

@@ -1,6 +1,16 @@
 # Dockerfile to run the JKA demo site python services
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 MAINTAINER Dan Padgett <dumbledore3@gmail.com>
+
+RUN export DEBIAN_FRONTEND=noninteractive; \
+    export DEBCONF_NONINTERACTIVE_SEEN=true; \
+    echo 'tzdata tzdata/Areas select Etc' | debconf-set-selections; \
+    echo 'tzdata tzdata/Zones/Etc select UTC' | debconf-set-selections; \
+    apt-get update -qqy \
+ && apt-get install -qqy --no-install-recommends \
+        tzdata \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install -y \
     locales \
@@ -10,6 +20,8 @@ RUN apt-get update && apt-get install -y \
     python-tz \
     python-mpmath \
     python-pip \
+    python-sklearn \
+    python-sklearn-lib \
     libjansson4 \
     apache2 \
     nano \
