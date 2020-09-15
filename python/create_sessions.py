@@ -139,6 +139,9 @@ if __name__ == '__main__':
         'metadata.client': 1,
         'metadata.version': 1,
         'metadata.maps.names': 1,
+        'metadata.maps.teams': 1,
+        'metadata.maps.newmod': 1,
+        'metadata.maps.bookmarks': 1,
         'metadata.maps.match_hash': 1,
         'metadata.maps.map_start_time': 1,
         'metadata.maps.map_end_time': 1}))
@@ -151,7 +154,7 @@ if __name__ == '__main__':
         continue
       demos.append(demo['metadata'])
       demonames.append(matchdemo['id'])
-    olddemos = [idx for idx, d in enumerate(demos) if d['version'] != 5]
+    olddemos = [idx for idx, d in enumerate(demos) if d['version'] < 5]
     if len(olddemos) > 0:
       print 'demos with wrong version!'
       print "\n".join([demonames[idx] for idx in olddemos])
@@ -181,7 +184,12 @@ if __name__ == '__main__':
           if name == None:
             continue
           if name[0]['name_start_time_raw'] >= player['start'] and name[-1]['name_end_time_raw'] <= player['end']:
+            demoidx = len(player['demos'])
             player['demos'].append(demonames[idx])
+            if 'bookmarks' in map:
+              if 'bookmarks' not in player:
+                player['bookmarks'] = []
+              player['bookmarks'].extend([{'d': demoidx, 'time': bookmark['time'], 'time_raw': bookmark['time_raw'], 'mark': bookmark['mark']} for bookmark in map['bookmarks']])
     #print json.dumps(players, sort_keys=True, indent=2, separators=(',', ': '))
 
     sessions = {}
@@ -219,6 +227,7 @@ if __name__ == '__main__':
         last_name = game['names'][-1]['name']
       sessionid = json.loads(key)
       bulk.find({'_id': {'session': sessionid, 'match': match['_id']}}).upsert().replace_one({'games': session, 'time': match['t'], 'is_match': inc_match == 1, 'score': getScore(match), 'dur': total_time})
+      print {'games': session, 'time': match['t'], 'is_match': inc_match == 1, 'score': getScore(match), 'dur': total_time}
       sessbulk.find({'_id': sessionid}).upsert().update_one({'$max': {'last_game': match['t']}, '$min': {'first_game': match['t']}, '$inc': {'num_games': 1, 'num_matches': inc_match, 'time': total_time}, '$set': {'last_name': last_name}})
       playerid = session_player_map[key]
       if playerid is not None:

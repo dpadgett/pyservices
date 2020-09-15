@@ -2,13 +2,16 @@
 
 # library for deflating/inflating demo metadata, for storage in mongodb
 
-def rekey(data, keymap):
+def rekey(data, keymap, keep_unknown=False):
   for key, value in data.copy().iteritems():
     if key in keymap:
       if keymap[key] == key:
         continue
       data[keymap[key]] = data[key]
-    del data[key]
+      del data[key]
+      continue
+    if not keep_unknown:
+      del data[key]
 
 def invert(keymap):
   return {v: k for k, v in keymap.iteritems()}
@@ -38,6 +41,12 @@ def teammapping():
     'sr': 'team_start_time_raw',
     'er': 'team_end_time_raw'}
 
+def minimize_team(team):
+  rekey(team, invert(teammapping()))
+
+def inflate_team(team):
+  rekey(team, teammapping())
+
 def newmodmapping():
   return {
     'i': 'newmod_id',
@@ -46,11 +55,27 @@ def newmodmapping():
     'sr': 'newmod_start_time_raw',
     'er': 'newmod_end_time_raw'}
 
-def minimize_team(team):
-  rekey(team, invert(teammapping()))
+def minimize_newmod(newmod):
+  rekey(newmod, invert(newmodmapping()))
 
-def inflate_team(team):
-  rekey(team, teammapping())
+def inflate_newmod(newmod):
+  # until 2020-09-14, newmod was accidentally inserted unshrunk,
+  # so need to keep the unshrunk keys for these
+  rekey(newmod, newmodmapping(), keep_unknown=True)
+
+def bookmarkmapping():
+  return {
+    't': 'time',
+    'tr': 'time_raw',
+    'm': 'mark'}
+
+def minimize_bookmarks(bookmarks):
+  for bookmark in bookmarks:
+    rekey(bookmark, invert(bookmarkmapping()))
+
+def inflate_bookmarks(bookmarks):
+  for bookmark in bookmarks:
+    rekey(bookmark, bookmarkmapping())
 
 def playermapping():
   return {
@@ -98,7 +123,8 @@ def mapmapping():
     'te': 'teams',
     'nm': 'newmod',
     'ma': 'is_match',
-    'h': 'match_hash'}
+    'h': 'match_hash',
+    'bm': 'bookmarks'}
 
 def minimize_map(map):
   if 'names' in map:
@@ -109,8 +135,14 @@ def minimize_map(map):
     for clientid, teams in map['teams'].iteritems():
       for team in teams:
         minimize_team(team)
+  if 'newmod' in map:
+    for clientid, newmods in map['newmod'].iteritems():
+      for newmod in newmods:
+        minimize_newmod(newmod)
   if 'scores' in map:
     minimize_scores(map['scores'])
+  if 'bookmarks' in map:
+    minimize_bookmarks(map['bookmarks'])
   rekey(map, invert(mapmapping()))
 
 def inflate_map(map):
@@ -125,6 +157,12 @@ def inflate_map(map):
     for clientid, teams in map['teams'].iteritems():
       for team in teams:
         inflate_team(team)
+  if 'newmod' in map:
+    for clientid, newmods in map['newmod'].iteritems():
+      for newmod in newmods:
+        inflate_newmod(newmod)
+  if 'bookmarks' in map:
+    inflate_bookmarks(map['bookmarks'])
 
 def minimize_map_path(path):
   # TODO: scores, names, teams
@@ -202,6 +240,7 @@ def minimize_proj(proj):
     minimize_path(path)
     key = '.'.join(path)
     proj[key] = value
+  return proj
 
 def matchmapping():
   return {

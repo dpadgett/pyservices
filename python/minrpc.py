@@ -101,12 +101,15 @@ def read_matches(cursor):
           for g in sg['games']:
             if demo['id'][len('/cygdrive/U/demos/'):] not in g['demos']:
               continue
-            if 'ns' not in g:
-              continue
             idx = g['demos'].index(demo['id'][len('/cygdrive/U/demos/'):])
-            shots = [shot for shot in g['ns']['shots'] if shot['d'] == idx]
-            if shots != []:
-              demo['ns'] = shots
+            if 'ns' in g:
+              shots = [shot for shot in g['ns']['shots'] if shot['d'] == idx]
+              if shots != []:
+                demo['ns'] = shots
+            if 'bookmarks' in g:
+              bookmarks = [bookmark for bookmark in g['bookmarks'] if bookmark['d'] == idx]
+              if bookmarks != []:
+                demo['bookmarks'] = bookmarks
     matches.append(match)
   return matches
 
