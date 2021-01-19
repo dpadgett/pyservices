@@ -40,3 +40,35 @@ def merge_players(ids):
     break
   updated = playerdb.find_one_and_update({'_id': ids[0]}, {'$set': {'last_name': session['last_name']}})
   return updated
+
+def split_players(ids):
+  db = MongoClient("mongodb").demos
+  playerdb = db.sessionPlayers
+  sessiondb = db.sessions
+  ratingdb = db.playerGameRatings
+  sessiongamedb = db.sessionGames
+  playerid = playerdb.save({})
+  print 'Splitting to', playerid
+  for id in ids:
+    for session in sessiondb.find({'_id': id}):
+      break
+    oldplayerid = session['playerid']
+    playerdb.find_one_and_update({'_id': playerid}, {'$inc': {'num_sessions': 1, 'num_games': session['num_games'], 'num_matches': session['num_matches'], 'time': session['time']}, '$set': {'last_name': session['last_name']}})
+    playerdb.find_one_and_update({'_id': oldplayerid}, {'$inc': {'num_sessions': -1, 'num_games': -session['num_games'], 'num_matches': -session['num_matches'], 'time': -session['time']}})
+  sessiondb.update_many({'_id': {'$in': ids}}, {'$set': {'playerid': playerid}})
+  splitmatches = sessiongamedb.distinct('_id.match', {'_id.session': {'$in': ids}})
+  ratings = [r for r in ratingdb.find({'_id.player': oldplayerid, '_id.match': {'$in': splitmatches}})]
+  for rating in ratings:
+    rating['_id']['player'] = playerid
+  ratingdb.delete_many({'_id.player': oldplayerid, '_id.match': {'$in': splitmatches}})
+  if len(ratings) > 0:
+    try:
+      ratingdb.insert_many(ratings)
+    except BulkWriteError as bwe:
+      print bwe.details
+  # fix last_name field
+  session = None
+  for session in sessiondb.find({'playerid': oldplayerid}).sort('last_game', pymongo.DESCENDING).limit(1):
+    break
+  updated = playerdb.find_one_and_update({'_id': oldplayerid}, {'$set': {'last_name': session['last_name']}})
+  return updated

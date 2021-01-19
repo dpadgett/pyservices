@@ -61,7 +61,7 @@ def wrap_result(result):
 
 def checkmerge():
   ip = os.environ['HTTP_X_REAL_IP']
-  allowed = ip == '135.180.87.144'
+  allowed = ip == '135.180.75.25'
   return allowed
 
 def search_players(searchplayers):
@@ -155,6 +155,13 @@ elif rpc == 'mergeplayers':
     exit()
   ids = [bson.ObjectId(id) for id in body['ids']]
   updated = player_lib.merge_players(ids)
+  print wrap_result(updated)
+elif rpc == 'splitplayers':
+  if not checkmerge():
+    print 'Not allowed'
+    exit()
+  ids = [bson.ObjectId(id) for id in body['ids']]
+  updated = player_lib.split_players(ids)
   print wrap_result(updated)
 elif rpc == 'setname':
   if not checkmerge():

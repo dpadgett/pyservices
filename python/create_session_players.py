@@ -68,7 +68,13 @@ if __name__ == '__main__':
     sessionplayerdb.drop()
     sessiondb.update_many({'playerid': {'$exists': True}}, {'$unset': {'playerid':1}})
     '''
-    sessions = sessiondb.find({'playerid': {'$exists': False}}).sort('first_game', pymongo.ASCENDING).skip(0).batch_size(30)
+    #sessions = sessiondb.find({'playerid': {'$exists': False}}).sort('first_game', pymongo.ASCENDING).skip(0).batch_size(30)
+    playerids = set(sessiondb.distinct('playerid'))
+    allplayerids = set(sessionplayerdb.distinct('_id'))
+    missing_players = playerids - allplayerids
+    print 'Recreating %d missing players' % (len(missing_players))
+    sessions = sessiondb.find({'playerid': {'$in': [p for p in missing_players]}}).sort('first_game', pymongo.ASCENDING).skip(0).batch_size(30)
+
 
   num_sessions = 0
   chunksize = 50
@@ -89,7 +95,7 @@ if __name__ == '__main__':
         if 'playerid' in match:
           return match['playerid']
       return None
-    playerid = None
+    playerid = session.get('playerid', None)
     if 'newmod_id' in sessionid and len(sessionid['newmod_id']) > 8:
       playerid = search('newmod_id')
       if playerid == None:
@@ -139,6 +145,8 @@ if __name__ == '__main__':
 
     if playerid == None:
       playerid = sessionplayerdb.save({})
+    #elif True:
+    #  playerid = sessionplayerdb.save({'_id': playerid})
     sessbulk.find({'_id': sessionid}).update_one({'$set': {'playerid': playerid}})
     bulk.find({'_id': playerid}).update_one({'$inc': {'num_sessions': 1, 'num_games': session['num_games'], 'num_matches': session['num_matches'], 'time': session['time']}, '$set': {'last_name': session['last_name']}})
     playerids_by_key['guid=%d' % (sessionid['guid'])] = playerid
@@ -161,6 +169,13 @@ if __name__ == '__main__':
       bulk = sessionplayerdb.initialize_unordered_bulk_op()
       sessbulk = sessiondb.initialize_unordered_bulk_op()
     #break
+  # commit sessbulk first, to set playerids in the db
+  try:
+    print sessbulk.execute()
+  except BulkWriteError as bwe:
+    print bwe.details
+  except InvalidOperation as ivo:
+    print ivo
   # clean any orphaned player entries.  technically shouldn't matter much other than cleaning garbage.
   playerids = set(sessiondb.distinct('playerid'))
   allplayerids = set(sessionplayerdb.distinct('_id'))
@@ -168,12 +183,6 @@ if __name__ == '__main__':
     bulk.find({'_id': orphaned_id}).remove_one()
   try:
     print bulk.execute()
-  except BulkWriteError as bwe:
-    print bwe.details
-  except InvalidOperation as ivo:
-    print ivo
-  try:
-    print sessbulk.execute()
   except BulkWriteError as bwe:
     print bwe.details
   except InvalidOperation as ivo:

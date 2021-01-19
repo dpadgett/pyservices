@@ -27,6 +27,8 @@ def run(script, args):
   d = dict(locals(), **globals())
   try:
     execfile(script, d, d)
+  except KeyboardInterrupt:
+    raise
   except:
     print traceback.format_exc()
   sys.argv = origargv
@@ -56,7 +58,13 @@ print 'Current parser version:', ver
 
 # find all demos which don't have a current metadata
 while True:
-  demos = ['/cygdrive/U/demos/' + demo['_id'] for demo in db.mindemos.find({'m.v': {'$ne': ver}}, {}).sort('t', pymongo.ASCENDING).limit(10)]
+  #demos = ['/cygdrive/U/demos/' + demo['_id'] for demo in db.mindemos.find({'m.v': {'$ne': ver}}, {}).sort('t', pymongo.ASCENDING).limit(10)]
+  #db.mindemos.find({'mt': {$gt: 1598998320}, 'm.m.bm.1': {$exists: true}}, {'_id':1,'m.m.bm':1})
+  #db.mindemos.find({'m.m.bm.1': {$exists: true}}, {'_id':1})
+  #demos = ['/cygdrive/U/demos/' + demo['_id'] for demo in db.mindemos.find({'_id': {'$regex': '^demobot/2020/09/1.*'}, 'm.m.bm.1': {'$exists': True}}, {}).sort('t', pymongo.ASCENDING).limit(10)]
+  #demos = ['/cygdrive/U/demos/' + demo['_id'] for demo in db.mindemos.find({'mt': {'$gt': 1598998320}, 'm.m.bm.1': {'$exists': True}}, {}).sort('t', pymongo.ASCENDING).limit(10)]
+  demos = ['/cygdrive/U/demos/' + demo['_id'] for demo in db.mindemos.find({'m.v': {'$ne': ver}, 'm.m.ma': True}, {}).sort('mt', pymongo.DESCENDING).limit(100)]
+  #db.mindemos.find({'mt': {$gt: 1597966503}, 'm.m.bm.1': {$exists: true}}, {'_id':1,'m.m.bm.m':1})
   if len(demos) == 0:
     break
   for demo in demos:
@@ -81,4 +89,7 @@ while True:
       if 'version' in demometa and demometa['version'] >= 2:
         match_id = ((map['serverId'] & 0xFFFFFFFF) << 32) + (map['checksumFeed'] & 0xFFFFFFFF)
         match_hash = struct.pack('!Q', match_id).encode('hex')
-        run('create_users.py', [match_hash])
+        #run('create_users.py', [match_hash])
+        run('create_sessions.py', [match_hash])
+        #run('create_session_players.py', [match_hash])
+        #run('calculate_ranks_v4.py', [match_hash])

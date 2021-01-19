@@ -1,3 +1,4 @@
+#!/usr/bin/python -u
 # requires first train.py to be run
 
 from pymongo import MongoClient
@@ -32,7 +33,8 @@ sessiondb = db.sessions
 sessiongamedb = db.sessionGames
 #sessionids = sessiondb.distinct('_id', {'playerid': playerid})
 #games = sessiongamedb.find({'_id.session': {'$in': sessionids}, 'time': {'$gt': datetime.datetime.now() - datetime.timedelta(days=30)}, 'is_match': True}).sort('time', pymongo.DESCENDING)
-games = sessiongamedb.find({'time': {'$gt': datetime.datetime.now() - datetime.timedelta(days=365)}, 'is_match': True}).sort('time', pymongo.DESCENDING)
+print 'Searching for games'
+games = sessiongamedb.find({'time': {'$gt': datetime.datetime.now() - datetime.timedelta(days=7)}, 'is_match': True, 'games.ns.v': {'$exists': False}}).sort('time', pymongo.DESCENDING)
 
 bulk = sessiongamedb.initialize_ordered_bulk_op()
 
