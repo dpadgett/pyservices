@@ -84,7 +84,7 @@ def merge_history(datas, matchid, name):
             value = value_list[idx]
             while idx < len(value_list) - 1:
               next_value = value_list[idx + 1]
-              if value[name + '_end_time' + keysuffix] == next_value[name + '_start_time' + keysuffix] and value[valuename] == next_value[valuename]:
+              if value[name + '_end_time' + keysuffix] >= next_value[name + '_start_time' + keysuffix] and value[valuename] == next_value[valuename]:
                 value[name + '_end_time' + keysuffix] = max( value[name + '_end_time' + keysuffix], next_value[name + '_end_time' + keysuffix] )
                 del value_list[idx + 1]
               else:

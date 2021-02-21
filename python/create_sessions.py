@@ -162,7 +162,6 @@ if __name__ == '__main__':
     names = merge_metadata.merge_history(demos, match['_id'], 'name')
     import json
     #print json.dumps(names, indent=2)
-    #print json.dumps(teams, indent=2)
     #print json.dumps(demonames, indent=2)
     start = 'name_start_time_raw'
     end = 'name_end_time_raw'
@@ -174,6 +173,13 @@ if __name__ == '__main__':
     
     teams = merge_metadata.merge_history(demos, match['_id'], 'team')
     newmod = merge_metadata.merge_history(demos, match['_id'], 'newmod')
+
+    #if len(sys.argv) > 1:
+    #  print json.dumps(teams['12'], indent=2)
+    #  #for idx, demo in enumerate(demos):
+    #  #  print demonames[idx]
+    #  #  print demo['maps'][0]['teams']['12']
+    #  exit()
 
     players = getPlayers(names, teams, newmod)
     for player in players:

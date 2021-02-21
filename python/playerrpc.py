@@ -83,6 +83,18 @@ def search_players(searchplayers):
     response.append({'result': result_arr})
   return response
 
+def strip_colors(string):
+  ''' Returns the string with color codes stripped'''
+  idx = 0
+  result = ''
+  while idx < len(string):
+    if string[idx] == '^' and idx < len(string) - 1 and ord(string[idx + 1]) >= ord('0') and ord(string[idx + 1]) <= ord('9'):
+      idx += 2
+      continue
+    result += string[idx]
+    idx += 1
+  return result
+
 if rpc == 'teams':
   scriptargs = []
   req = bson.json_util.loads(body)
@@ -182,3 +194,19 @@ elif rpc == 'searchplayer':
     searchplayers = [sessionid]
   response = search_players(searchplayers)
   print wrap_result(response)
+elif rpc == 'ratings':
+  playerid = args['id'][0]
+  '''
+  playerdb = db.sessionPlayers
+  sessiondb = db.sessions
+  sessiongamedb = db.sessionGames
+  player = {}
+  for player in playerdb.find({'_id': ObjectId(playerid)}):
+    pass
+  name = strip_colors(player.get('name', player.get('last_name', playerid)))
+  print bson.json_util.dumps(name)
+  '''
+  ratingdb = db.playerGameRatings
+  ratings = [rating for rating in ratingdb.find({'_id.player': ObjectId(playerid)}).sort([('time', 1)])]
+  for rating in ratings:
+    print '%s,%s,%s' % (rating['time'], rating['rating']['start']['friendly'], rating['rating']['updated']['friendly'])

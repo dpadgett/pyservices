@@ -97,8 +97,10 @@ def updaterank(match):
         for idx2, t2 in enumerate(allteams[idx+1:]):
           if t2['start'] <= team['end'] and team['start'] <= t2['end']:
             print 'Found overlapping team times', team, t2
+            print idx, sessiongame
             #exit()
-            return
+            #return
+            raise ValueError
       playergamemap[session['playerid']] = sessiongame['_id']
   match = shrinker.inflate_match(copy.deepcopy(match))
   #exit(1)
@@ -228,7 +230,7 @@ if __name__ == '__main__':
     if len(lastgame) > 0:
       print 'Last elo run updated up to', lastgame[0]['time']
       startdate = lastgame[0]['time']
-    #startdate = datetime(2020, 6, 7)
+    #startdate = datetime(2017, 11, 1)
     startdate -= timedelta(days=1)
     '''
     allmatches = set([m['_id'] for m in matchdb.find({'ma': True, 't': {'$gt': startdate}}, {})])
@@ -254,7 +256,10 @@ if __name__ == '__main__':
         print 'Processing match', i, match['_id']
         print match['t']
         startdate = match['t']
-        updaterank(match)
+        try:
+          updaterank(match)
+        except ValueError:
+          print traceback.format_exc()
       break
     except:
       print traceback.format_exc()
