@@ -404,6 +404,10 @@ def mergematch(match, outdir):
         cuts.append([demosbyid[glueid(event['end'], mapend)], event['end']])
         print 'added end glue slice:', cuts[-1], 'length', (mapend - event['end'])
 
+  if len(cuts) == 0 and len(demosbyid) > 0:
+    first_cid = sorted(demosbyid.keys())[0]
+    cuts.append([demosbyid[first_cid], mapstart if mapstart is not None else 0])
+
   mapname = match['n']
   tm = match['t']
   tm = timezone('UTC').localize(tm, is_dst=True)
@@ -411,24 +415,26 @@ def mergematch(match, outdir):
   filename = strip_fs(mapname + '_' + tm.strftime('%Y-%m-%d_%H-%M-%S'))
   prefix = outdir + filename
   mergedemo(cuts, prefix + '.dm_26')
+  if not exists(prefix + '.dm_26') and len(demofiles) > 0:
+    shutil.copyfile(demofiles[0], prefix + '.dm_26')
   scores = match['sc'][0]
   for sc in match['sc']:
-    if sc['fi']:
+    if sc.get('fi'):
       scores = sc
       print 'Found final scores'
-  description = 'Final score: Blue ' + str(scores['bs']) + ' Red ' + str(scores['rs']) + "\r\n"
+  description = 'Final score: Blue ' + str(scores.get('bs', 0)) + ' Red ' + str(scores.get('rs', 0)) + "\r\n"
   description += "Blue team:\r\n"
   description += "Time Name Score\r\n"
-  for player in scores['b']:
+  for player in scores.get('b', []):
     description +=  str(player['t']) + ' ' + strip_html(strip_colors(player['n'])) + ' ' + str(player['s']) + "\r\n"
   description += "Red team:\r\n"
   description += "Time Name Score\r\n"
-  for player in scores['r']:
+  for player in scores.get('r', []):
     description +=  str(player['t']) + ' ' + strip_html(strip_colors(player['n'])) + ' ' + str(player['s']) + "\r\n"
   description += "\r\nRendered from teh's JKA match database: http://demos.jactf.com/match.html#rpc=lookup&id=" + match['_id']
   video = dict(
     snippet = dict(
-      title = strip_html(strip_colors(maps[mapname.lower()]['longname'])) + ' played on ' + tm.strftime('%A %B %d %Y at %I:%M %p'),
+      title = strip_html(strip_colors(maps.get(mapname.lower(), {}).get('longname', mapname))) + ' played on ' + tm.strftime('%A %B %d %Y at %I:%M %p'),
       description = description,
       categoryId = 20
     ),
@@ -437,11 +443,15 @@ def mergematch(match, outdir):
     )
   )
   print video
-  metafd = open(prefix + '.json', 'w')
-  metafd.write(json.dumps(video))
-  metafd.close()
+  try:
+    metafd = open(prefix + '.json', 'w')
+    metafd.write(json.dumps(video))
+    metafd.close()
+  except IOError:
+    pass
   for file in generated_files:
-    os.remove(file)
+    if exists(file):
+      os.remove(file)
   return prefix + '.dm_26'
 
 import zipfile
@@ -461,30 +471,58 @@ if __name__ == '__main__':
   #matches = list(matchdb.find({'_id': '958c5945124f7224720f2041f831b26c9b66c01ab8bd0eb775f34eaf8ff8444dadfeffccef6275d4841825ebec2993805885eabf3a22dc271638fa2a4b9bec80'}))
   match = matchdb.find({'_id': id})[0]
 
-  origout = sys.stdout
-  sys.stdout = sys.stderr
+  mapname = match['n']
+  tm = match['t']
+  tm = timezone('UTC').localize(tm, is_dst=True)
+  tm = tm.astimezone(timezone('US/Pacific'))
+  filename = strip_fs(mapname + '_' + tm.strftime('%Y-%m-%d_%H-%M-%S'))
+  prefix = '/tmp/' + filename
+  file = prefix + '.dm_26'
 
-  file = mergematch(match, '/tmp/')
+  if not exists(file):
+    origout = sys.stdout
+    sys.stdout = sys.stderr
 
-  sys.stdout = origout
+    file = mergematch(match, '/tmp/')
 
-  metafile = splitext(file)[0] + '.json'
-  # we want to pass back both the demo file and the json data...
-  # seems the simplest way is to either tar or zip the results
-  # zip is more portable for users so will use it for now
-  zipfile = splitext(file)[0] + '.zip'
-  zip = Popen(['zip', basename(zipfile), basename(file), basename(metafile)], cwd=dirname(file), stdout=sys.stderr)
-  zip.wait()
+    sys.stdout = origout
 
-  os.remove(file)
-  os.remove(metafile)
+  raw_stdout = len(sys.argv) > 2 and sys.argv[2] == '--raw-stdout'
+  zipped = len(sys.argv) > 2 and sys.argv[2] == True
 
-  print 'Content-type: application/octet-stream'
-  print 'Content-Disposition: attachment; filename="' + basename(zipfile) + '"'
-  print 'Status: 200 OK'
-  print ''
+  if raw_stdout:
+    with open(file, 'rb') as f:
+      shutil.copyfileobj(f, sys.stdout)
+    sys.stdout.flush()
+  elif not zipped:
+    print 'Content-type: application/octet-stream'
+    print 'Content-Disposition: attachment; filename="' + basename(file) + '"'
+    print 'Status: 200 OK'
+    print ''
 
-  with open(zipfile, 'r') as f:
-    shutil.copyfileobj(f, sys.stdout)
+    with open(file, 'r') as f:
+      shutil.copyfileobj(f, sys.stdout)
 
-  os.remove(zipfile)
+    #os.remove(file)
+    #os.remove(metafile)
+  else:
+    metafile = splitext(file)[0] + '.json'
+    # we want to pass back both the demo file and the json data...
+    # seems the simplest way is to either tar or zip the results
+    # zip is more portable for users so will use it for now
+    zipfile = splitext(file)[0] + '.zip'
+    zip = Popen(['zip', basename(zipfile), basename(file), basename(metafile)], cwd=dirname(file), stdout=sys.stderr)
+    zip.wait()
+
+    #os.remove(file)
+    #os.remove(metafile)
+
+    print 'Content-type: application/octet-stream'
+    print 'Content-Disposition: attachment; filename="' + basename(zipfile) + '"'
+    print 'Status: 200 OK'
+    print ''
+
+    with open(zipfile, 'r') as f:
+      shutil.copyfileobj(f, sys.stdout)
+
+    os.remove(zipfile)

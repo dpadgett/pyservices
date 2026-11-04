@@ -60,8 +60,8 @@ def wrap_result(result):
     return bson.json_util.dumps(result)
 
 def checkmerge():
-  ip = os.environ['HTTP_X_REAL_IP']
-  allowed = ip == '135.180.75.25'
+  ip = os.environ.get('HTTP_X_REAL_IP', os.environ.get('REMOTE_ADDR', ''))
+  allowed = ip in ['135.180.72.208', '192.168.86.1'] #'135.180.75.25'
   return allowed
 
 def search_players(searchplayers):
@@ -78,6 +78,9 @@ def search_players(searchplayers):
     for p in players:
       if 'name' in p:
         p['name'] += u' \u00ae'
+      #if p['_id'] == ObjectId('568ffb38cb15c797ca8fa594'):
+      #  p['rating']['raw']['mu'] -= 11
+      #  p['rating']['friendly'] -= 11
       result_obj = {'name': p.get('name', p['last_name']), 'rating': p['rating']}
       result_arr.append(result_obj)
     response.append({'result': result_arr})
@@ -143,23 +146,39 @@ elif rpc == 'sessiongames':
     if game['_id']['match'] in ratings:
       game['rating'] = ratings[game['_id']['match']]
   print bson.json_util.dumps(games)
+elif rpc == 'jratings':
+  playerid = args['id'][0]
+  ratingdb = db.playerGameRatings
+  ratings = [rating for rating in ratingdb.find({'_id.player': ObjectId(playerid)})]
+  print bson.json_util.dumps(ratings)
 elif rpc == 'checkmerge':
   allowed = checkmerge()
   print wrap_result(allowed)
-elif rpc == 'topplayers' or rpc == 'searchplayers':
+elif rpc == 'topplayers' or rpc == 'searchplayers' or rpc == 'newplayers':
   playerdb = db.sessionPlayers
   sessiondb = db.sessions
   sessiongamedb = db.sessionGames
   limit = int(args.get('limit', ['25'])[0])
   offset = int(args.get('offset', ['0'])[0])
+  transform = lambda player: player
   if rpc == 'topplayers':
     cursor = playerdb.find().sort('num_matches', pymongo.DESCENDING)
+  elif rpc == 'newplayers':
+    cursor = playerdb.find({'num_matches': {'$gt': 0}}).sort('_id', pymongo.DESCENDING)
+    def updateFirstSeen(player):
+      player['first_game'] = player['_id'].generation_time
+      firstSession = sessiondb.find({'playerid': player['_id']}).sort('first_game', pymongo.ASCENDING).limit(1)
+      for sess in firstSession:
+        player['first_game'] = sess['first_game']
+        player['first_game_from_session'] = True
+      return player
+    transform = lambda player: updateFirstSeen(player)
   elif rpc == 'searchplayers':
     sessions = sessiongamedb.distinct('_id.session', {'games.names.name': args['name'][0]})
     playerids = sessiondb.distinct('playerid', {'_id': {'$in': sessions}})
     cursor = playerdb.find({'_id': {'$in': playerids}}).sort('num_matches', pymongo.DESCENDING)
   total = cursor.count()
-  players = [player for player in cursor.skip(offset).limit(limit)]
+  players = [transform(player) for player in cursor.skip(offset).limit(limit)]
   print wrap_result({'result': players, 'offset': offset, 'limit': limit, 'total': total})
 elif rpc == 'mergeplayers':
   if not checkmerge():
@@ -172,9 +191,9 @@ elif rpc == 'splitplayers':
   if not checkmerge():
     print 'Not allowed'
     exit()
-  ids = [bson.ObjectId(id) for id in body['ids']]
-  updated = player_lib.split_players(ids)
-  print wrap_result(updated)
+  ids = [bson.json_util.loads(id) for id in body['ids']]
+  players = player_lib.split_players(ids)
+  print wrap_result(players)
 elif rpc == 'setname':
   if not checkmerge():
     print 'Not allowed'

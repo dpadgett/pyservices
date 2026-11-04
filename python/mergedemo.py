@@ -20,6 +20,26 @@ if 'clientid' not in args or len(args['clientid']) != 1:
 
 clientid = int(args['clientid'][0])
 
+fmt = args.get('format', [''])[0]
+if fmt in ('mme', 'mme_init', 'mme_meta'):
+  import hashlib
+  import mme_stream_lib
+  cache_key = hashlib.sha1('merged:%s:%d:v1' % (matchid, clientid)).hexdigest()
+  def _spawn_merged(mme_path, meta_path, lock_fd):
+    db = MongoClient("mongodb").demos
+    match = db.minmatches.find_one({'_id': matchid})
+    if not match:
+      return
+    changer_args = ['/home/pyservices/demochanger', '%d' % clientid]
+    changer_args.extend(['/cygdrive/U/demos/' + demo['id'] for demo in match['d']])
+    changer_args.append('-')
+    devnull = open('/dev/null', 'wb')
+    p1 = Popen(changer_args, stdin=devnull, stdout=PIPE, stderr=devnull, close_fds=False, preexec_fn=mme_stream_lib.make_child_setup([]))
+    p2 = Popen([mme_stream_lib.CONVERTER_BIN, '-', mme_path, meta_path], stdin=p1.stdout, stdout=devnull, stderr=devnull, close_fds=False, preexec_fn=mme_stream_lib.make_child_setup([lock_fd]))
+    p1.stdout.close()
+    devnull.close()
+  mme_stream_lib.handle_mme_request(fmt, args, cache_key, _spawn_merged)
+
 db = MongoClient("mongodb").demos
 
 matches = db.minmatches.find({'_id': matchid})

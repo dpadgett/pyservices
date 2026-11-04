@@ -48,6 +48,23 @@ def strip_non_ascii(string):
 
 democutter = u'/home/pyservices/demotrimmer'
 
+fmt = args.get('format', [''])[0]
+if fmt in ('mme', 'mme_init', 'mme_meta'):
+  import hashlib
+  import mme_stream_lib
+  st = os.stat(demo)
+  cache_key = hashlib.sha1('trim:%s:%d:%d:%s:%s:v1' % (demo, int(st.st_mtime), st.st_size, format_time(start), format_time(end))).hexdigest()
+  def _spawn_trimmed(mme_path, meta_path, lock_fd):
+    demofd = open(demo, u'rb')
+    devnull = open('/dev/null', 'wb')
+    trim_args = [democutter, '-', '-', format_time(start), format_time(end)]
+    p1 = Popen(trim_args, stdin=demofd, stdout=PIPE, stderr=devnull, close_fds=False, preexec_fn=mme_stream_lib.make_child_setup([]))
+    p2 = Popen([mme_stream_lib.CONVERTER_BIN, '-', mme_path, meta_path], stdin=p1.stdout, stdout=devnull, stderr=devnull, close_fds=False, preexec_fn=mme_stream_lib.make_child_setup([lock_fd]))
+    p1.stdout.close()
+    demofd.close()
+    devnull.close()
+  mme_stream_lib.handle_mme_request(fmt, args, cache_key, _spawn_trimmed)
+
 args = [democutter, '-', '-', format_time(start), format_time(end)]
 
 time = "%02d-%02d_%04d" % (time / 1000 / 60, (time / 1000) % 60, time % 1000)

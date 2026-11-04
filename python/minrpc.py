@@ -65,7 +65,23 @@ elif args['rpc'] == ['matchdemo']:
     print 'Missing id'
     exit()
   id = args['id'][0]
-  run('merge_matches_predict.py', [id])
+  fmt = args.get('format', [''])[0]
+  if fmt in ('mme', 'mme_init', 'mme_meta'):
+    import hashlib
+    import mme_stream_lib
+    from subprocess import Popen
+    cache_key = hashlib.sha1('matchdemo:%s:v1' % id).hexdigest()
+    def _spawn_matchdemo(mme_path, meta_path, lock_fd):
+      devnull = open('/dev/null', 'wb')
+      safe_id = ''.join(c for c in id if c.isalnum() or c in '_-')
+      cmd = '/usr/bin/python -u /home/pyservices/merge_matches_predict.py "%s" --raw-stdout | %s - "%s" "%s"' % (
+        safe_id, mme_stream_lib.CONVERTER_BIN, mme_path, meta_path
+      )
+      Popen(['/bin/sh', '-c', cmd], stdin=devnull, stdout=devnull, stderr=devnull, close_fds=False, preexec_fn=mme_stream_lib.make_child_setup([lock_fd]))
+      devnull.close()
+    mme_stream_lib.handle_mme_request(fmt, args, cache_key, _spawn_matchdemo)
+  zipped = 'zip' in args and len(args['zip']) == 1
+  run('merge_matches_predict.py', [id, zipped])
   exit()
 
 print 'Content-type: text/plain'
@@ -98,6 +114,10 @@ def read_matches(cursor):
           demo['player'] = str(sessions[bson.json_util.dumps(sg['_id']['session'])]['playerid'])
           if demo['player'] in ratings:
             demo['rating'] = ratings[demo['player']]['rating']
+            #if demo['player'] == '568ffb38cb15c797ca8fa594':
+            #  for ratingkey in ['start', 'updated']:
+            #      demo['rating'][ratingkey]['raw']['mu'] -= 11
+            #      demo['rating'][ratingkey]['friendly'] -= 11
           for g in sg['games']:
             if demo['id'][len('/cygdrive/U/demos/'):] not in g['demos']:
               continue
@@ -138,7 +158,7 @@ elif args['rpc'] == ['recentmatches'] or args['rpc'] == ['searchmatches'] :
   offset = int(args.get('offset', ['0'])[0])
 
   if args['rpc'] == ['recentmatches']:
-    query = {'ma': True}
+    query = {'ma': True, 'n': {'$nin': ['siege_cargobarge3_v6', 'siege_korriban2_v1', 'siege_hoth3_v6', 'siege_narshaddaa_v5', 'siege_destroyer_v2']}}
   else:
     # searchmatches
     query = {}
@@ -184,3 +204,82 @@ elif args['rpc'] == ['lookupmatch']:
   cursor = cursor.skip(offset).limit(limit)
   matches = read_matches(cursor)
   print wrap_result({'result': matches, 'offset': offset, 'limit': limit, 'total': total})
+elif args['rpc'] == ['numdemos']:
+  db = MongoClient("mongodb").demos
+  demodb = db.mindemos
+  print wrap_result({'numdemos': demodb.estimated_document_count()})
+elif args['rpc'] == ['topnames']:
+  db = MongoClient("mongodb").demos
+  cursor = db.minnames.find()
+  names = [name['_id'] for name in cursor]
+  print wrap_result(names)
+elif args['rpc'] == ['topmaps']:
+  db = MongoClient("mongodb").demos
+  cursor = db.minmaps.find()
+  maps = [mapname['_id'] for mapname in cursor]
+  print wrap_result(maps)
+  db = MongoClient("mongodb").demos
+elif args['rpc'] == ['topservers']:
+  db = MongoClient("mongodb").demos
+  cursor = db.minservers.find()
+  servers = [server['_id'] for server in cursor]
+  print wrap_result(servers)
+elif args['rpc'] == ['recentdemos'] or args['rpc'] == ['search'] or args['rpc'] == ['lookupdemo']:
+  db = MongoClient("mongodb").demos
+  demodb = db.mindemos
+
+  limit = int(args.get('limit', ['10'])[0])
+  offset = int(args.get('offset', ['0'])[0])
+
+  query = {}
+  if args['rpc'] == ['lookupdemo'] and 'id' in args:
+    query['_id'] = args['id'][0]
+  elif args['rpc'] == ['search']:
+    if 'player' in args:
+      query['p'] = args['player'][0]
+    if 'before' in args:
+      bval = args['before'][0]
+      try:
+        dt = datetime.datetime.fromtimestamp(int(bval))
+      except ValueError:
+        dt = parse(bval)
+      query['t'] = {'$lte': dt}
+    if 'map' in args:
+      query['m.m'] = {'$elemMatch': {'n': args['map'][0]}}
+    if 'server' in args:
+      query['m.h'] = args['server'][0]
+    if 'match' in args:
+      query['ma'] = args['match'][0] == 'true'
+
+  proj = {
+    't': 1,
+    'p': 1,
+    'm.c.id': 1,
+    'm.h': 1,
+    'm.m.n': 1,
+    'm.m.s': 1,
+    'm.m.e': 1,
+    'm.m.sc': 1,
+    'm.m.te': 1,
+  }
+  cursor = demodb.find(query, proj).sort('mt', -1)
+  total = demodb.estimated_document_count() if not query else cursor.count()
+  if args['rpc'] == ['recentdemos']:
+    raw_docs = list(cursor.skip(offset).limit(limit + 60))
+    demos = []
+    for doc in raw_docs:
+      inf = shrinker.inflate(doc)
+      maps = [x.get('mapname', '') for x in inf.get('metadata', {}).get('maps', [])]
+      if any(mp.startswith('siege_') and mp not in ('siege_hoth', 'siege_desert', 'siege_korriban') for mp in maps):
+        continue
+      did = inf.get('_id', '')
+      if did.startswith('/cygdrive/U/demos/') and os.path.exists(did) and os.path.getsize(did) < 256:
+        continue
+      demos.append(inf)
+      if len(demos) >= limit:
+        break
+  else:
+    cursor = cursor.skip(offset).limit(limit)
+    demos = [shrinker.inflate(doc) for doc in cursor]
+  print wrap_result({'result': demos, 'offset': offset, 'limit': limit, 'total': total})
+
