@@ -109,7 +109,8 @@ def handle_mme_request(fmt, args, cache_key, spawn_converter_fn):
       exit()
     with open(mme_path, 'rb') as f:
       data = f.read(init_bytes)
-    print 'Content-type: application/octet-stream'
+    print 'Content-type: application/x-jamme-init'
+    print 'X-Raw-Length: ' + str(len(data))
     print 'Cache-Control: no-store'
     print 'Content-Length: ' + str(len(data))
     print 'Status: 200 OK'

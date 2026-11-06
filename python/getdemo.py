@@ -132,7 +132,8 @@ if fmt in ('mme', 'mme_init', 'mme_meta'):
       exit()
     with open(mme_path, 'rb') as f:
       data = f.read(init_bytes)
-    print 'Content-type: application/octet-stream'
+    print 'Content-type: application/x-jamme-init'
+    print 'X-Raw-Length: ' + str(len(data))
     print 'Cache-Control: no-store'
     print 'Content-Length: ' + str(len(data))
     print 'Status: 200 OK'
