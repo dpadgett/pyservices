@@ -58,7 +58,7 @@ if fmt in ('mme', 'mme_init', 'mme_meta'):
         for _, base in entries[:len(entries) - 50]:
           if base == cache_key:
             continue
-          for ext in ('.mme', '.meta.json', '.lock'):
+          for ext in ('.mme', '.meta.json', '.timeline.json', '.lock'):
             try:
               os.unlink(os.path.join(cache_dir, base + ext))
             except Exception:
@@ -161,6 +161,16 @@ if fmt in ('mme', 'mme_init', 'mme_meta'):
       pass
     with open(meta_path, 'rb') as f:
       data = f.read()
+    try:
+      import timeline_events_lib
+      data = timeline_events_lib.enrich_mme_meta_bytes(
+        data,
+        cache_key,
+        {'kind': 'single', 'demo_path': demo},
+        cache_dir,
+      )
+    except Exception:
+      pass
     print 'Content-type: application/json'
     print 'Cache-Control: no-store'
     print 'Content-Length: ' + str(len(data))

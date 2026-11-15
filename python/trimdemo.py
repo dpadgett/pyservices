@@ -63,7 +63,13 @@ if fmt in ('mme', 'mme_init', 'mme_meta'):
     p1.stdout.close()
     demofd.close()
     devnull.close()
-  mme_stream_lib.handle_mme_request(fmt, args, cache_key, _spawn_trimmed)
+  mme_stream_lib.handle_mme_request(
+    fmt,
+    args,
+    cache_key,
+    _spawn_trimmed,
+    {'kind': 'trim', 'demo_path': demo, 'focus_time': time, 'before': before, 'after': after, 'prefix': prefix},
+  )
 
 args = [democutter, '-', '-', format_time(start), format_time(end)]
 

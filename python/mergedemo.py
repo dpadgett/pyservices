@@ -38,7 +38,13 @@ if fmt in ('mme', 'mme_init', 'mme_meta'):
     p2 = Popen([mme_stream_lib.CONVERTER_BIN, '-', mme_path, meta_path], stdin=p1.stdout, stdout=devnull, stderr=devnull, close_fds=False, preexec_fn=mme_stream_lib.make_child_setup([lock_fd]))
     p1.stdout.close()
     devnull.close()
-  mme_stream_lib.handle_mme_request(fmt, args, cache_key, _spawn_merged)
+  mme_stream_lib.handle_mme_request(
+    fmt,
+    args,
+    cache_key,
+    _spawn_merged,
+    {'kind': 'merged', 'matchid': matchid, 'clientid': clientid},
+  )
 
 db = MongoClient("mongodb").demos
 

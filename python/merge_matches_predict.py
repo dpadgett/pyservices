@@ -449,6 +449,20 @@ def mergematch(match, outdir):
     metafd.close()
   except IOError:
     pass
+  try:
+    cid_by_demo = dict((v, k) for k, v in demosbyid.items())
+    cuts_meta = [
+      {
+        'clientId': cid_by_demo.get(pair[0]),
+        'mapIdx': pair[0][0],
+        'startMillis': int(pair[1]),
+      }
+      for pair in cuts
+    ]
+    with open(prefix + '.cuts.json', 'w') as cutsfd:
+      cutsfd.write(json.dumps(cuts_meta))
+  except Exception:
+    pass
   for file in generated_files:
     if exists(file):
       os.remove(file)

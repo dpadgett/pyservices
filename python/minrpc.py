@@ -79,7 +79,13 @@ elif args['rpc'] == ['matchdemo']:
       )
       Popen(['/bin/sh', '-c', cmd], stdin=devnull, stdout=devnull, stderr=devnull, close_fds=False, preexec_fn=mme_stream_lib.make_child_setup([lock_fd]))
       devnull.close()
-    mme_stream_lib.handle_mme_request(fmt, args, cache_key, _spawn_matchdemo)
+    mme_stream_lib.handle_mme_request(
+      fmt,
+      args,
+      cache_key,
+      _spawn_matchdemo,
+      {'kind': 'matchdemo', 'matchid': id},
+    )
   zipped = 'zip' in args and len(args['zip']) == 1
   run('merge_matches_predict.py', [id, zipped])
   exit()

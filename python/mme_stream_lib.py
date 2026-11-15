@@ -32,7 +32,7 @@ def prune_cache(exclude_key):
       for _, base in entries[:len(entries) - 50]:
         if base == exclude_key:
           continue
-        for ext in ('.mme', '.meta.json', '.lock'):
+        for ext in ('.mme', '.meta.json', '.timeline.json', '.lock'):
           try:
             os.unlink(os.path.join(CACHE_DIR, base + ext))
           except Exception:
@@ -55,10 +55,11 @@ def make_child_setup(keep_fds):
           pass
   return _setup
 
-def handle_mme_request(fmt, args, cache_key, spawn_converter_fn):
+def handle_mme_request(fmt, args, cache_key, spawn_converter_fn, timeline_context=None):
   ensure_cache_dir()
   mme_path = os.path.join(CACHE_DIR, cache_key + '.mme')
   meta_path = os.path.join(CACHE_DIR, cache_key + '.meta.json')
+  tl_path = os.path.join(CACHE_DIR, cache_key + '.timeline.json')
   lock_path = os.path.join(CACHE_DIR, cache_key + '.lock')
 
   def ensure_conversion():
@@ -74,7 +75,7 @@ def handle_mme_request(fmt, args, cache_key, spawn_converter_fn):
       os.close(lock_fd)
       return
     prune_cache(cache_key)
-    for p in (mme_path, meta_path):
+    for p in (mme_path, meta_path, tl_path):
       try:
         if os.path.isfile(p):
           os.unlink(p)
@@ -138,6 +139,17 @@ def handle_mme_request(fmt, args, cache_key, spawn_converter_fn):
       pass
     with open(meta_path, 'rb') as f:
       data = f.read()
+    if timeline_context is not None:
+      try:
+        import timeline_events_lib
+        data = timeline_events_lib.enrich_mme_meta_bytes(
+          data,
+          cache_key,
+          timeline_context,
+          CACHE_DIR,
+        )
+      except Exception:
+        pass
     print 'Content-type: application/json'
     print 'Cache-Control: no-store'
     print 'Content-Length: ' + str(len(data))
