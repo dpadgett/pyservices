@@ -24,9 +24,22 @@ import traceback
 
 import merge_metadata
 from bson.objectid import ObjectId
+import bson
+import bson.json_util
 
 import shrinker
 import user_lib
+
+KNOWN_CONST_IPS = set([
+  0, -1, 750090492, -19591632, 592937230,
+  -1912860523, 1964675042, -1344502913, -1123061075
+])
+
+def make_session_son(ip_val, guid_val, newmod_id=None):
+  items = [('ip', int(ip_val)), ('guid', int(guid_val))]
+  if newmod_id is not None:
+    items.append(('newmod_id', newmod_id))
+  return bson.SON(items)
 
 def getPlayers(names, teams, newmod):
   clients = []
@@ -71,13 +84,26 @@ def getPlayers(names, teams, newmod):
         client['newmod_id'] = nm['newmod_id']
   return clients
 
+def canonical_skey(sid):
+  d = {'ip': int(sid['ip']), 'guid': int(sid.get('guid', 0))}
+  if 'newmod_id' in sid and sid['newmod_id'] is not None:
+    d['newmod_id'] = sid['newmod_id']
+  return bson.json_util.dumps(d, sort_keys=True, separators=(',', ':'))
+
+def to_session_son(sid):
+  return make_session_son(sid['ip'], sid.get('guid', 0), sid.get('newmod_id'))
+
 def getScore(match):
   scores = None
-  for sc in match['sc']:
+  fallback = None
+  for sc in match.get('sc', []):
+    if sc.get('bs') is not None and sc.get('rs') is not None:
+      fallback = sc
     scores = sc
-    if sc['fi'] != 0:
+    if sc.get('fi', 0) != 0:
       break
-  return {'blue': scores.get('bs'), 'red': scores.get('rs')}
+  chosen = scores if (scores and scores.get('bs') is not None and scores.get('rs') is not None) else (fallback or scores or {})
+  return {'blue': chosen.get('bs'), 'red': chosen.get('rs')}
 
 if __name__ == '__main__':
   db = MongoClient("mongodb").demos
@@ -97,45 +123,43 @@ if __name__ == '__main__':
   start = datetime.datetime(2016, 8, 15)
 
   clean_start = False
+  pending_ids = []
   if len(sys.argv) > 1:
     matches = matchdb.find({'_id': {'$in': sys.argv[1:]}}).sort('t', pymongo.ASCENDING).skip(0).batch_size(30)
   else:
-    #matches = matchdb.find({'t': {'$gt': start}, 'ma': True}).sort('t', pymongo.ASCENDING).skip(0).batch_size(30)
-    '''
-    matches = matchdb.find({'t': {'$gt': start}}).sort('t', pymongo.ASCENDING).skip(0).batch_size(30)
-    sessiongamedb.drop()
-    sessiondb.drop()
-    sessiongamedb.create_index([('_id.match',1)])
-    sessiongamedb.create_index([('_id.session',1),('time',-1)])
-    sessionGames.create_index([('time',-1), ('is_match',1)])
-    sessiondb.create_index([('_id.newmod_id',1),('last_game',-1)])
-    sessiondb.create_index([('_id.guid',1),('last_game',-1)])
-    sessiondb.create_index([('playerid',1),('last_game',-1)])
-    clean_start = True
-    '''
     for sessiongame in sessiongamedb.find().sort('time', pymongo.DESCENDING).limit(1):
       start = sessiongame['time']
-      #start += datetime.timedelta(days=-21)
       start += datetime.timedelta(hours=-3)
       print 'Start:', start
-    matches = matchdb.find({'t': {'$gt': start}}).sort('t', pymongo.ASCENDING).skip(0).batch_size(30)
-    
+    pending_doc = db.profileLinkConfig.find_one({'_id': 'pending_session_matches'})
+    if pending_doc and pending_doc.get('matches'):
+      pending_ids = list(pending_doc['matches'])
+      print 'Including %d pending_session_matches from populate_db_lite' % len(pending_ids)
+      matches = matchdb.find({'$or': [{'t': {'$gt': start}}, {'_id': {'$in': pending_ids}}]}).sort('t', pymongo.ASCENDING).skip(0).batch_size(30)
+    else:
+      matches = matchdb.find({'t': {'$gt': start}}).sort('t', pymongo.ASCENDING).skip(0).batch_size(30)
 
+  import json
   num_matches = 0
   chunksize = 50
   bulk = sessiongamedb.initialize_unordered_bulk_op()
   sessbulk = sessiondb.initialize_unordered_bulk_op()
   sessplayerbulk = sessionplayerdb.initialize_unordered_bulk_op()
   session_player_map = {}
+  processed_match_ids = []
+  processed_pug_ids = []
+  candidate_orphan_skeys = set()
+
   for match in matches:
     print num_matches, match['_id'], match['t']
     num_matches += 1
+    processed_match_ids.append(match['_id'])
+    if match.get('ma') == True:
+      processed_pug_ids.append(match['_id'])
     # first, check for any ip/guid data recorded in the demo metadata
     demos = []
     demonames = []
     for matchdemo in match['d']:
-      ips = []
-      guids = []
       demodatas = mindemodb.find({'_id': matchdemo['id']}, shrinker.minimize_proj({
         'metadata.client': 1,
         'metadata.version': 1,
@@ -160,26 +184,8 @@ if __name__ == '__main__':
       print 'demos with wrong version!'
       print "\n".join([demonames[idx] for idx in olddemos])
     names = merge_metadata.merge_history(demos, match['_id'], 'name')
-    import json
-    #print json.dumps(names, indent=2)
-    #print json.dumps(demonames, indent=2)
-    start = 'name_start_time_raw'
-    end = 'name_end_time_raw'
-
-    import json
-    #print json.dumps(demos, sort_keys=True, indent=2, separators=(',', ': '))
-    #print json.dumps(names, sort_keys=True, indent=2, separators=(',', ': '))
-    #print json.dumps(getPlayers(names), sort_keys=True, indent=2, separators=(',', ': '))
-    
     teams = merge_metadata.merge_history(demos, match['_id'], 'team')
     newmod = merge_metadata.merge_history(demos, match['_id'], 'newmod')
-
-    #if len(sys.argv) > 1:
-    #  print json.dumps(teams['12'], indent=2)
-    #  #for idx, demo in enumerate(demos):
-    #  #  print demonames[idx]
-    #  #  print demo['maps'][0]['teams']['12']
-    #  exit()
 
     players = getPlayers(names, teams, newmod)
     for player in players:
@@ -196,31 +202,58 @@ if __name__ == '__main__':
             if 'bookmarks' in map:
               if 'bookmarks' not in player:
                 player['bookmarks'] = []
-              player['bookmarks'].extend([{'d': demoidx, 'time': bookmark['time'], 'time_raw': bookmark['time_raw'], 'mark': bookmark['mark']} for bookmark in map['bookmarks']])
-    #print json.dumps(players, sort_keys=True, indent=2, separators=(',', ': '))
+              player['bookmarks'].extend([{'d': demoidx, 'time': bookmark['time'], 'time_raw': bookmark['time_raw'], 'mark': bookmark.get('mark', '?')} for bookmark in map['bookmarks']])
+
+    # Find previously saved sessionGames for this match and preserve any backfilled real IPs & Nice Shots
+    prev_docs = [] if clean_start else list(sessiongamedb.find({'_id.match': match['_id']}))
+    prevsessiongames = {canonical_skey(game['_id']['session']): game for game in prev_docs}
+    prev_real_ip_by_cid_guid = {}
+    prev_real_ip_by_nm = {}
+    prev_ns_by_cid_demos = {}
+    for pdoc in prev_docs:
+      p_ip = int(pdoc['_id']['session'].get('ip', 0))
+      for pg in pdoc.get('games', []):
+        if p_ip not in KNOWN_CONST_IPS:
+          prev_real_ip_by_cid_guid[(pg.get('clientid'), int(pg.get('guid', 0)))] = p_ip
+          if pg.get('newmod_id'):
+            prev_real_ip_by_nm[pg['newmod_id']] = p_ip
+        if 'ns' in pg and pg.get('demos'):
+          prev_ns_by_cid_demos[(pg.get('clientid'), tuple(pg['demos']))] = pg['ns']
+
+    for player in players:
+      if int(player.get('ip', 0)) in KNOWN_CONST_IPS:
+        rec_ip = prev_real_ip_by_cid_guid.get((player.get('clientid'), int(player.get('guid', 0))))
+        if rec_ip is None and player.get('newmod_id'):
+          rec_ip = prev_real_ip_by_nm.get(player['newmod_id'])
+        if rec_ip is not None:
+          player['ip'] = rec_ip
+      if player.get('demos'):
+        old_ns = prev_ns_by_cid_demos.get((player.get('clientid'), tuple(player['demos'])))
+        if old_ns is not None:
+          player['ns'] = old_ns
 
     sessions = {}
+    session_sons = {}
     for player in players:
-      sessionid = {'ip': player['ip'], 'guid': player['guid']}
-      if 'newmod_id' in player:
-        sessionid['newmod_id'] = player['newmod_id']
+      sessionid = make_session_son(player['ip'], player['guid'], player.get('newmod_id'))
       if sessionid['ip'] == 0 and sessionid['guid'] == 0 and sessionid.get('newmod_id', '') == '':
         continue
-      key = json.dumps(sessionid)
+      key = canonical_skey(sessionid)
+      session_sons[key] = sessionid
       cur = sessions.get(key, [])
       sessions[key] = cur + [player]
-      #sessions.append({'ip': player['ip'], 'guid': player['guid']})
 
+    lookup_keys = [k for k in (set(sessions.keys()) | set(prevsessiongames.keys())) if k not in session_player_map]
+    if lookup_keys:
+      lookup_sons = [to_session_son(json.loads(k)) for k in lookup_keys]
+      for session in sessiondb.find({'_id': {'$in': lookup_sons}}):
+        session_player_map[canonical_skey(session['_id'])] = session.get('playerid', None)
+      for k in lookup_keys:
+        if k not in session_player_map:
+          session_player_map[k] = None
 
-    # find any previously saved sessions for updating.
-    prevsessiongames = {} if clean_start else {json.dumps(game['_id']['session']): game for game in sessiongamedb.find({'_id.match': match['_id']})}
-    for session in sessiondb.find({'_id': {'$in': [json.loads(key) for key in sessions.keys() if key not in session_player_map]}}):
-      session_player_map[json.dumps(session['_id'])] = session.get('playerid', None)
-    # if not found, it doesn't exist, so playerid is None.
-    for key in sessions.keys():
-      if key not in session_player_map:
-        session_player_map[key] = None
-        
+    score_obj = getScore(match)
+    map_name = match.get('n')
     for key, session in sessions.iteritems():
       inc_match = 0
       last_name = ''
@@ -228,38 +261,66 @@ if __name__ == '__main__':
       for game in session:
         for team in game['teams']:
           total_time += team['end'] - team['start']
-          if match['ma'] == True:
+          if match.get('ma') == True:
             if team['team'] == 'RED' or team['team'] == 'BLUE':
               inc_match = 1
         last_name = game['names'][-1]['name']
-      sessionid = json.loads(key)
-      bulk.find({'_id': {'session': sessionid, 'match': match['_id']}}).upsert().replace_one({'games': session, 'time': match['t'], 'is_match': inc_match == 1, 'score': getScore(match), 'dur': total_time})
-      print {'games': session, 'time': match['t'], 'is_match': inc_match == 1, 'score': getScore(match), 'dur': total_time}
-      sessbulk.find({'_id': sessionid}).upsert().update_one({'$max': {'last_game': match['t']}, '$min': {'first_game': match['t']}, '$inc': {'num_games': 1, 'num_matches': inc_match, 'time': total_time}, '$set': {'last_name': last_name}})
-      playerid = session_player_map[key]
+      sessionid = session_sons[key]
+      sg_id = bson.SON([('session', sessionid), ('match', match['_id'])])
+      sg_doc = {
+        'games': session,
+        'time': match['t'],
+        'is_match': inc_match == 1,
+        'map': map_name,
+        'score': score_obj,
+        'dur': total_time,
+      }
+      bulk.find({'_id': sg_id}).upsert().replace_one(sg_doc)
+      sessbulk.find({'_id': sessionid}).upsert().update_one({
+        '$max': {'last_game': match['t']},
+        '$min': {'first_game': match['t']},
+        '$inc': {'num_games': 1, 'num_matches': inc_match, 'time': total_time},
+        '$set': {'last_name': last_name}
+      })
+      playerid = session_player_map.get(key)
       if playerid is not None:
-        sessplayerbulk.find({'_id': playerid}).update_one({'$inc': {'num_games': 1, 'num_matches': inc_match, 'time': total_time}, '$set': {'last_name': last_name}})
+        sessplayerbulk.find({'_id': playerid}).update_one({
+          '$inc': {'num_games': 1, 'num_matches': inc_match, 'time': total_time},
+          '$set': {'last_name': last_name}
+        })
       prev = prevsessiongames.pop(key, None)
       if prev is not None:
-        inc_match = 1 if prev['is_match'] else 0
-        total_time = prev['dur']
-        sessbulk.find({'_id': sessionid}).update_one({'$inc': {'num_games': -1, 'num_matches': -inc_match, 'time': -total_time}})
+        prev_inc = 1 if prev.get('is_match') else 0
+        prev_dur = prev.get('dur', 0)
+        sessbulk.find({'_id': sessionid}).update_one({'$inc': {'num_games': -1, 'num_matches': -prev_inc, 'time': -prev_dur}})
         if playerid is not None:
-          sessplayerbulk.find({'_id': playerid}).update_one({'$inc': {'num_games': -1, 'num_matches': -inc_match, 'time': -total_time}})
-    for prev in prevsessiongames.values():
+          sessplayerbulk.find({'_id': playerid}).update_one({'$inc': {'num_games': -1, 'num_matches': -prev_inc, 'time': -prev_dur}})
+
+    for rem_key, prev in prevsessiongames.iteritems():
       bulk.find({'_id': prev['_id']}).remove_one()
-    #print json.dumps(sessions, sort_keys=True, indent=2, separators=(',', ': '))
+      rem_sid = to_session_son(prev['_id']['session'])
+      prev_inc = 1 if prev.get('is_match') else 0
+      prev_dur = prev.get('dur', 0)
+      sessbulk.find({'_id': rem_sid}).update_one({'$inc': {'num_games': -1, 'num_matches': -prev_inc, 'time': -prev_dur}})
+      rem_pid = session_player_map.get(rem_key)
+      if rem_pid is not None:
+        sessplayerbulk.find({'_id': rem_pid}).update_one({'$inc': {'num_games': -1, 'num_matches': -prev_inc, 'time': -prev_dur}})
+      candidate_orphan_skeys.add(rem_key)
+
     print json.dumps(sessions.keys(), sort_keys=True, indent=2, separators=(',', ': '))
     if (num_matches % chunksize) == 0:
-      #exit()
       try:
         print bulk.execute()
       except BulkWriteError as bwe:
         print bwe.details
+      except InvalidOperation as ivo:
+        print ivo
       try:
         print sessbulk.execute()
       except BulkWriteError as bwe:
         print bwe.details
+      except InvalidOperation as ivo:
+        print ivo
       try:
         print sessplayerbulk.execute()
       except BulkWriteError as bwe:
@@ -269,7 +330,7 @@ if __name__ == '__main__':
       bulk = sessiongamedb.initialize_unordered_bulk_op()
       sessbulk = sessiondb.initialize_unordered_bulk_op()
       sessplayerbulk = sessionplayerdb.initialize_unordered_bulk_op()
-    #break
+
   try:
     print bulk.execute()
   except BulkWriteError as bwe:
@@ -282,9 +343,40 @@ if __name__ == '__main__':
     print bwe.details
   except InvalidOperation as ivo:
     print ivo
+
+  # Clean any session entries orphaned by removed sessionGames
+  if candidate_orphan_skeys:
+    orphan_bulk = sessiondb.initialize_unordered_bulk_op()
+    has_orphan = False
+    for okey in candidate_orphan_skeys:
+      oson = to_session_son(json.loads(okey))
+      if sessiongamedb.find({'_id.session': oson}).limit(1).count() == 0:
+        orphan_bulk.find({'_id': oson}).remove_one()
+        has_orphan = True
+        print 'Removed orphaned session:', oson
+    if has_orphan:
+      try:
+        print orphan_bulk.execute()
+      except BulkWriteError as bwe:
+        print bwe.details
+      except InvalidOperation as ivo:
+        print ivo
+
   try:
     print sessplayerbulk.execute()
   except BulkWriteError as bwe:
     print bwe.details
   except InvalidOperation as ivo:
     print ivo
+
+  if pending_ids and processed_match_ids:
+    db.profileLinkConfig.update_one(
+      {'_id': 'pending_session_matches'},
+      {'$pullAll': {'matches': processed_match_ids}}
+    )
+  if len(sys.argv) <= 1 and processed_pug_ids:
+    db.profileLinkConfig.update_one(
+      {'_id': 'pending_rank_matches'},
+      {'$addToSet': {'matches': {'$each': processed_pug_ids}}},
+      upsert=True
+    )

@@ -143,92 +143,6 @@ demos = sys.argv[1:]
 if len(demos) == 0:
   demos = find_demos.find_demos_all()
 
-def map_is_match( data, map ):
-  map_start = map['map_start_time']
-  map_end = map['map_end_time']
-  map_duration = map_end - map_start
-  # compute a hash to identify this match
-  match_hash = ''
-  if 'version' in data and data['version'] >= 2:
-    match_id = ((map['serverId'] & 0xFFFFFFFF) << 32) + (map['checksumFeed'] & 0xFFFFFFFF)
-    match_hash = struct.pack('!Q', match_id).encode('hex')
-  elif 'scores' in map:
-    match_id = {'map': map['mapname'], 'sv_hostname': data['sv_hostname']}
-    teams = [x for x in ['red', 'blue', 'free'] if x + 'players' in map['scores']]
-    playerscores = [player for x in teams for player in map['scores'][x + 'players']]
-    match_id['players'] = [{'score': client['score'], 'name': client['client_name'], 'client': client['client'], 'team': client['team']} for client in playerscores]
-    hasher = hashlib.sha512()
-    hasher.update(json.dumps(match_id))
-    match_hash = hasher.hexdigest()
-  # only a pug if map_start is (near) 0.  otherwise, noone was on when map started
-  # actual map_restart min start time is 400.  but, server probably lags a few frames to reload everything
-  # so say it's ok if map_start is <1s.  this filters out map changes, since clients take longer than .6s to load
-  # UPDATE: this no longer works due to openjk server time reset.
-  if map_start >= 20000:
-    print 'Not a pug - map_start was ' + str(map_start)
-    return (False, match_hash)
-  if map_duration < 10 * 60 * 1000:
-    print 'Not a pug - map duration was ' + str(map_duration)
-    return (False, match_hash)
-  # track team changes
-  #( name_history, team_history, frag_history ) = merge_histories( demo_datas )
-  name_history = map['names']
-  team_history = map['teams']
-  frag_history = map['frags']
-  starting_teams = {'RED': [], 'BLUE': [], 'FREE': [], 'SPECTATOR': []}
-  for (client, teams) in team_history.items():
-    if teams[0]['team_start_time'] == map_start:
-      starting_teams[teams[0]['team']].append(client)
-  if len(starting_teams['RED']) < 2 or len(starting_teams['BLUE']) < 2:
-    print 'Few players at start: ', starting_teams
-    return (False, match_hash)
-  if len(starting_teams['RED']) != len(starting_teams['BLUE']):
-    print 'Not equal number of players: ', starting_teams
-    return (False, match_hash)
-  ending_teams = {'RED': [], 'BLUE': [], 'FREE': [], 'SPECTATOR': []}
-  # still count players that quit less than a minute before map end time ("RQ")
-  ending_team_time = map_end - 60 * 1000
-  for (client, teams) in team_history.items():
-    if teams[-1]['team_start_time'] <= ending_team_time and teams[-1]['team_end_time'] >= ending_team_time:
-      ending_teams[teams[-1]['team']].append(client)
-  for team in ['RED', 'BLUE']:
-    if len(starting_teams[team]) != len(ending_teams[team]):
-      print 'Too many left ' + team + ': ', starting_teams[team], ending_teams[team]
-      return (False, match_hash)
-  # check that not many players were replaced
-  ending_players = [client for players in [ending_teams['RED'], ending_teams['BLUE']] for client in players]
-  starting_players = [client for players in [starting_teams['RED'], starting_teams['BLUE']] for client in players]
-  for client in starting_players:
-    if (name_history[client][0]['is_bot'] == 1):
-      # any bots? not a match.
-      return (False, match_hash)
-  original_players = []
-  for client in ending_players:
-    if (team_history[client][0]['team_start_time'] == map_start and
-        team_history[client][0]['team'] == team_history[client][-1]['team'] and
-        team_history[client][-1]['team_start_time'] <= ending_team_time and
-        team_history[client][-1]['team_end_time'] >= ending_team_time):
-      original_players.append(client)
-  lost_players = [client for client in starting_players if client not in original_players]
-  if len(ending_players) - len(original_players) > 2:
-    print 'More than 2 substitutions were made: ', lost_players
-    return (False, match_hash)
-  if 'scores' in map:
-    teams = [x for x in ['red', 'blue', 'free'] if x + 'players' in map['scores']]
-    playerscores = [player for x in teams for player in map['scores'][x + 'players']]
-    mapdur = map_end / 1000 / 60
-    times = [client['time'] for client in playerscores]
-    if len([t for t in times  if t >= mapdur - 1]) == 0:
-      print 'Not a pug - no player stayed for full map duration of ' + str(mapdur) + ' - only ' + str(times)
-      return (False, match_hash)
-  # map must end in intermission (scoreboard shown).  demo file will only record scores during intermission
-  intermission = map['scores']['is_final'] == 1
-  if (not intermission):
-    print 'Not a pug - scores not sent during intermission'
-    return (False, match_hash)
-  print 'Is a pug - map_start was ' + str(map_start) + ', ' + str(len(starting_teams['RED'])) + '\'s'
-  return (True, match_hash)
-
 def is_match( data ):
   # pick the longest map from the demo to check
   map = data['maps'][0]
@@ -241,7 +155,7 @@ def is_match( data ):
       map_start = map['map_start_time']
       map_end = map['map_end_time']
       map_duration = map_end - map_start
-  return map_is_match( data, map )
+  return demometa_lib.map_is_match( data, map )
 
 def update_maps(old, new, map_updates):
   if old != None:
@@ -449,7 +363,7 @@ for demo in demos:
   # write client name separately since mongodb can't query it properly
   if 'maps' in demometa and len(demometa['maps']) > 0:
     for idx, map in enumerate(demometa['maps']):
-      (match, match_hash) = map_is_match(demometa, map)
+      (match, match_hash) = demometa_lib.map_is_match(demometa, map)
       wrappeddemometa['m']['m'][idx]['ma'] = match
       wrappeddemometa['m']['m'][idx]['h'] = match_hash
     namefreq = {}
@@ -524,16 +438,25 @@ if len(name_updates) > 0:
 
 if len(match_updates) > 0:
   bulk = db.minmatches.initialize_unordered_bulk_op()
+  touched_session_matches = []
   for hash, match in match_updates.iteritems():
     if match == None:
       bulk.find({'_id': hash}).remove_one()
     else:
       bulk.find({'_id': hash}).upsert().replace_one(match)
+      if match.get('t') is None or match['t'].year >= 2016:
+        touched_session_matches.append(hash)
   try:
     match_result = bulk.execute()
   except BulkWriteError as bwe:
     match_result = bwe.details
   print 'executed match writes:', match_result
+  if len(touched_session_matches) > 0:
+    db.profileLinkConfig.update_one(
+      {'_id': 'pending_session_matches'},
+      {'$addToSet': {'matches': {'$each': touched_session_matches}}},
+      upsert=True
+    )
 
 # exit()
 

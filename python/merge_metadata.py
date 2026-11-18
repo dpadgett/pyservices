@@ -49,6 +49,11 @@ def merge_history(datas, matchid, name):
               value[valuename] == current_value[valuename] ):
             current_value[name + '_end_time' + keysuffix] = max( current_value[name + '_end_time' + keysuffix], value[name + '_end_time' + keysuffix] )
             current_value[name + '_start_time' + keysuffix] = min( current_value[name + '_start_time' + keysuffix], value[name + '_start_time' + keysuffix] )
+            if keysuffix != '':
+              if (name + '_end_time') in current_value and (name + '_end_time') in value:
+                current_value[name + '_end_time'] = max( current_value[name + '_end_time'], value[name + '_end_time'] )
+              if (name + '_start_time') in current_value and (name + '_start_time') in value:
+                current_value[name + '_start_time'] = min( current_value[name + '_start_time'], value[name + '_start_time'] )
             for key in value.keys():
               if not key.startswith(name) and key not in current_value.keys():
                 current_value[key] = value[key]
@@ -61,8 +66,10 @@ def merge_history(datas, matchid, name):
         while needs_check:
           needs_check = False
           if len( value_list ) > 1:
-            last_value = value_list[0]
-            for value in value_list[1:]:
+            # check for any overlapping segments and reconcile them.
+            # for partially overlapping, take the earlier time as the correct boundary.
+            # for a segment totally inside another, split the bigger segment into 2 pieces and insert the smaller in between.
+            for last_value, value in zip(value_list[:-1], value_list[1:]):
               if last_value[name + '_end_time' + keysuffix] > value[name + '_start_time' + keysuffix]:
                 # could happen if a client misses snaps
                 if last_value[name + '_end_time' + keysuffix] > value[name + '_end_time' + keysuffix]:
@@ -76,8 +83,10 @@ def merge_history(datas, matchid, name):
                     new_value[name + '_start_time' + keysuffix] = value[name + '_end_time' + keysuffix]
                     value_list.append( new_value )
                     sort_values(value_list)
+                    # TODO: this seems wrong. somehow this should work better.
                     needs_check = True
                 last_value[name + '_end_time' + keysuffix] = value[name + '_start_time' + keysuffix]
+          # merge adjacent segments with the same value
           for idx in range(len(value_list)):
             if idx >= len(value_list):
               break
@@ -86,6 +95,8 @@ def merge_history(datas, matchid, name):
               next_value = value_list[idx + 1]
               if value[name + '_end_time' + keysuffix] >= next_value[name + '_start_time' + keysuffix] and value[valuename] == next_value[valuename]:
                 value[name + '_end_time' + keysuffix] = max( value[name + '_end_time' + keysuffix], next_value[name + '_end_time' + keysuffix] )
+                if keysuffix != '' and (name + '_end_time') in value and (name + '_end_time') in next_value:
+                  value[name + '_end_time'] = max( value[name + '_end_time'], next_value[name + '_end_time'] )
                 del value_list[idx + 1]
               else:
                 break

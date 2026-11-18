@@ -14,6 +14,8 @@ from bson.objectid import ObjectId
 import json
 import bson.json_util
 
+import player_lib
+import session_alias_lib
 import shrinker
 
 from dateutil.parser import *
@@ -102,32 +104,140 @@ def wrap_result(result):
   else:
     return bson.json_util.dumps(result)
 
+def _skey(sid):
+  return bson.json_util.dumps(sid, sort_keys=True)
+
 def read_matches(cursor):
+  raw_matches = [shrinker.inflate_match(m) for m in cursor]
+  if not raw_matches:
+    return []
+
   db = MongoClient("mongodb").demos
   sessiongamedb = db.sessionGames
   ratingdb = db.playerGameRatings
   sessiondb = db.sessions
+  playerdb = db.sessionPlayers
+
+  mids = [m['_id'] for m in raw_matches]
+  sgs_by_mid = {mid: [] for mid in mids}
+  unique_sids_by_key = {}
+  for sg in sessiongamedb.find({'_id.match': {'$in': mids}}):
+    mid = sg['_id']['match']
+    if mid in sgs_by_mid:
+      sgs_by_mid[mid].append(sg)
+    sk = _skey(sg['_id']['session'])
+    if sk not in unique_sids_by_key:
+      unique_sids_by_key[sk] = sg['_id']['session']
+
+  sessions = {}
+  all_pids = set()
+  if unique_sids_by_key:
+    for s in sessiondb.find({'_id': {'$in': list(unique_sids_by_key.values())}}):
+      sessions[_skey(s['_id'])] = s
+      if s.get('playerid') is not None:
+        all_pids.add(s['playerid'])
+
+  ratings_by_mid = {mid: {} for mid in mids}
+  for r in ratingdb.find({'_id.match': {'$in': mids}}):
+    mid = r['_id']['match']
+    if mid in ratings_by_mid:
+      ratings_by_mid[mid][str(r['_id']['player'])] = r
+
+  canonical_by_pid = {}
+  if all_pids:
+    pdocs = {
+      p['_id']: p
+      for p in playerdb.find(
+        {'_id': {'$in': list(all_pids)}},
+        {'name': 1, 'last_name': 1, 'enhanced_account': 1, 'num_matches': 1, 'num_games': 1}
+      )
+    }
+    unverified_oids = [
+      oid for oid, pl in pdocs.iteritems()
+      if not pl.get('name') and (int(pl.get('num_matches', 0)) >= 2 or int(pl.get('num_games', 0)) >= 3)
+    ]
+    unv_sess_by_pid = {}
+    unv_alias_map = {}
+    if unverified_oids:
+      unv_skeys = []
+      for us in sessiondb.find({'playerid': {'$in': unverified_oids}}, {'_id': 1, 'playerid': 1, 'num_games': 1, 'last_name': 1}):
+        unv_sess_by_pid.setdefault(us['playerid'], []).append(us)
+        unv_skeys.append(player_lib.canonical_session_key(us['_id']))
+      if unv_skeys:
+        for adoc in db.sessionAliasSummary.find({'_id': {'$in': unv_skeys}}):
+          unv_alias_map[adoc['_id']] = adoc
+
+    for oid, pl in pdocs.iteritems():
+      pid_s = str(oid)
+      if pl.get('name'):
+        canonical_by_pid[pid_s] = {
+          'name': pl['name'],
+          'verified': True,
+          'account': pl.get('enhanced_account'),
+        }
+      elif oid in unv_sess_by_pid:
+        prof_al = session_alias_lib.summarize_profile_aliases(unv_sess_by_pid[oid], unv_alias_map, pl)
+        best_nm = prof_al.get('best_name') or pl.get('last_name')
+        if best_nm and session_alias_lib.is_helpful_alias(best_nm):
+          canonical_by_pid[pid_s] = {
+            'name': best_nm,
+            'verified': False,
+            'account': pl.get('enhanced_account'),
+          }
+
   matches = []
-  for match in cursor:
-    match = shrinker.inflate_match(match)
-    sessiongames = [s for s in sessiongamedb.find({'_id.match': match['_id']})]
-    sessions = {bson.json_util.dumps(s['_id']): s for s in sessiondb.find({'_id': {'$in': [sg['_id']['session'] for sg in sessiongames]}})}
-    #print match['_id'], sessiongames
-    ratings = {str(r['_id']['player']): r for r in ratingdb.find({'_id.match': match['_id']})}
+  for match in raw_matches:
+    sessiongames = sgs_by_mid.get(match['_id'], [])
+    ratings = ratings_by_mid.get(match['_id'], {})
+
+    best_by_cid = {}
+    for sg in sessiongames:
+      sdoc = sessions.get(_skey(sg['_id']['session']))
+      if not sdoc or 'playerid' not in sdoc or sdoc['playerid'] is None:
+        continue
+      pid_str = str(sdoc['playerid'])
+      is_rated = 1 if pid_str in ratings else 0
+      is_m = 1 if sg.get('is_match') else 0
+      for g in sg.get('games', []):
+        cid = g.get('clientid')
+        if cid is None:
+          continue
+        gdur = max(0, int(g.get('end', 0)) - int(g.get('start', 0)))
+        cand_rank = (is_rated, is_m, gdur)
+        prev_entry = best_by_cid.get(cid)
+        if prev_entry is None or cand_rank > prev_entry[0]:
+          info = {'player': pid_str}
+          if pid_str in ratings:
+            info['rating'] = ratings[pid_str]['rating']
+          cmeta = canonical_by_pid.get(pid_str)
+          if cmeta:
+            info['player_name'] = cmeta['name']
+            info['player_verified'] = cmeta['verified']
+            if cmeta.get('account'):
+              info['player_account'] = cmeta['account']
+          best_by_cid[cid] = (cand_rank, info)
+
+    match['client_players'] = {str(cid): pair[1] for cid, pair in best_by_cid.iteritems()}
+
     for demo in match['demos']:
+      rel_id = demo['id'][len('/cygdrive/U/demos/'):]
       for sg in sessiongames:
-        if len([g for g in sg['games'] if demo['id'][len('/cygdrive/U/demos/'):] in g['demos']]) > 0:
-          demo['player'] = str(sessions[bson.json_util.dumps(sg['_id']['session'])]['playerid'])
-          if demo['player'] in ratings:
-            demo['rating'] = ratings[demo['player']]['rating']
-            #if demo['player'] == '568ffb38cb15c797ca8fa594':
-            #  for ratingkey in ['start', 'updated']:
-            #      demo['rating'][ratingkey]['raw']['mu'] -= 11
-            #      demo['rating'][ratingkey]['friendly'] -= 11
+        if len([g for g in sg['games'] if rel_id in g.get('demos', [])]) > 0:
+          sdoc = sessions.get(_skey(sg['_id']['session']))
+          if sdoc and sdoc.get('playerid') is not None:
+            demo['player'] = str(sdoc['playerid'])
+            if demo['player'] in ratings:
+              demo['rating'] = ratings[demo['player']]['rating']
+            cmeta = canonical_by_pid.get(demo['player'])
+            if cmeta:
+              demo['player_name'] = cmeta['name']
+              demo['player_verified'] = cmeta['verified']
+              if cmeta.get('account'):
+                demo['player_account'] = cmeta['account']
           for g in sg['games']:
-            if demo['id'][len('/cygdrive/U/demos/'):] not in g['demos']:
+            if rel_id not in g.get('demos', []):
               continue
-            idx = g['demos'].index(demo['id'][len('/cygdrive/U/demos/'):])
+            idx = g['demos'].index(rel_id)
             if 'ns' in g:
               shots = [shot for shot in g['ns']['shots'] if shot['d'] == idx]
               if shots != []:
@@ -136,6 +246,16 @@ def read_matches(cursor):
               bookmarks = [bookmark for bookmark in g['bookmarks'] if bookmark['d'] == idx]
               if bookmarks != []:
                 demo['bookmarks'] = bookmarks
+      if 'player' not in demo and demo.get('client_id') in best_by_cid:
+        fb = best_by_cid[demo['client_id']][1]
+        demo['player'] = fb['player']
+        if 'rating' in fb:
+          demo['rating'] = fb['rating']
+        if 'player_name' in fb:
+          demo['player_name'] = fb['player_name']
+          demo['player_verified'] = fb.get('player_verified', False)
+        if 'player_account' in fb:
+          demo['player_account'] = fb['player_account']
     matches.append(match)
   return matches
 

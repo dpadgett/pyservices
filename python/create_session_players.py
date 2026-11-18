@@ -73,8 +73,14 @@ if __name__ == '__main__':
     allplayerids = set(sessionplayerdb.distinct('_id'))
     missing_players = playerids - allplayerids
     print 'Recreating %d missing players' % (len(missing_players))
-    sessions = sessiondb.find({'playerid': {'$in': [p for p in missing_players]}}).sort('first_game', pymongo.ASCENDING).skip(0).batch_size(30)
+    sessions = sessiondb.find({'$or': [{'playerid': {'$in': [p for p in missing_players]}}, {'playerid': {'$exists': False}}]}).sort('first_game', pymongo.ASCENDING).skip(0).batch_size(30)
 
+
+  import json
+  cfg_doc = db.profileLinkConfig.find_one({'_id': 'config'}) or {}
+  pinned_sessions = cfg_doc.get('pinned_sessions', {})
+  shared_nmids = set([d.get('value') for d in db.profileSharedIdentifiers.find({'type': 'newmod_id'}) if d.get('value')])
+  shared_guids = set([int(d.get('value')) for d in db.profileSharedIdentifiers.find({'type': 'guid'}) if d.get('value') is not None])
 
   num_sessions = 0
   chunksize = 50
@@ -86,6 +92,7 @@ if __name__ == '__main__':
     num_sessions += 1
     
     sessionid = session['_id']
+    skey = json.dumps(sessionid, sort_keys=True, separators=(',', ':'))
     def search(key):
       playerid = playerids_by_key.get('%s=%s' % (key, str(sessionid[key])), None)
       if playerid != None:
@@ -95,14 +102,20 @@ if __name__ == '__main__':
         if 'playerid' in match:
           return match['playerid']
       return None
-    playerid = session.get('playerid', None)
-    if 'newmod_id' in sessionid and len(sessionid['newmod_id']) > 8:
+    playerid = None
+    if skey in pinned_sessions and pinned_sessions[skey].get('playerid'):
+      try:
+        playerid = ObjectId(str(pinned_sessions[skey]['playerid']))
+        print 'MATCH by pinned session:', playerid
+      except Exception:
+        playerid = None
+    if playerid is None and 'newmod_id' in sessionid and len(sessionid['newmod_id']) > 8 and sessionid['newmod_id'] not in shared_nmids:
       playerid = search('newmod_id')
       if playerid == None:
         print 'No Match by newmod id'
       else:
         print 'MATCH by newmod id!'
-    if playerid == None and 'guid' in sessionid and sessionid['guid'] > 1000:
+    if playerid == None and 'guid' in sessionid and sessionid['guid'] > 1000 and sessionid['guid'] not in shared_guids:
       playerid = search('guid')
       if playerid == None:
         print 'No Match by guid'
@@ -148,9 +161,10 @@ if __name__ == '__main__':
     #elif True:
     #  playerid = sessionplayerdb.save({'_id': playerid})
     sessbulk.find({'_id': sessionid}).update_one({'$set': {'playerid': playerid}})
-    bulk.find({'_id': playerid}).update_one({'$inc': {'num_sessions': 1, 'num_games': session['num_games'], 'num_matches': session['num_matches'], 'time': session['time']}, '$set': {'last_name': session['last_name']}})
-    playerids_by_key['guid=%d' % (sessionid['guid'])] = playerid
-    if 'newmod_id' in sessionid:
+    bulk.find({'_id': playerid}).upsert().update_one({'$inc': {'num_sessions': 1, 'num_games': session['num_games'], 'num_matches': session['num_matches'], 'time': session['time']}, '$set': {'last_name': session['last_name']}})
+    if sessionid.get('guid', 0) > 1000 and sessionid['guid'] not in shared_guids:
+      playerids_by_key['guid=%d' % (sessionid['guid'])] = playerid
+    if 'newmod_id' in sessionid and sessionid['newmod_id'] not in shared_nmids:
       playerids_by_key['newmod_id=%s' % (sessionid['newmod_id'])] = playerid
     if (num_sessions % chunksize) == 0:
       #exit()
@@ -181,6 +195,7 @@ if __name__ == '__main__':
   allplayerids = set(sessionplayerdb.distinct('_id'))
   for orphaned_id in allplayerids - playerids:
     bulk.find({'_id': orphaned_id}).remove_one()
+    print 'Removed orphaned player', orphaned_id
   try:
     print bulk.execute()
   except BulkWriteError as bwe:
